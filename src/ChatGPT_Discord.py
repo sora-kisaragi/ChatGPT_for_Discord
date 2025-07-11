@@ -459,9 +459,7 @@ class ChatBot:
 🔄 `/setting reset` - デフォルト設定に戻す
 💾 `/setting save [プロンプト]` - 新しいプロンプトを保存""")
 
-    # ...existing code...
-    
-def run(self):
+    def run(self):
         """ボットを実行"""
         if not self.discord_config.token:
             logger.error("Discord token is not set. Please set DISCORD_TOKEN environment variable.")
