@@ -1,52 +1,149 @@
-# プロジェクト名
-DiscordでChatGPTと楽しくお話ができるようにしたプログラムです
-遊ぶ際は、OpenAIのAPIキー DiscordのBotをご自身で用意してください。
+# Discord ChatGPT/Ollama Bot
 
+OpenAI ChatGPT API と Ollama API の両方に対応した Discord Bot です。
 
-## インストール方法
+## 特徴
 
-このプロジェクトを実行する環境を整えるために、以下の手順を実行してください。
+- **複数AI対応**: OpenAI ChatGPT と Ollama の両方をサポート
+- **チャンネル別会話管理**: チャンネルごとに独立した会話履歴
+- **設定可能なプロンプト**: チャンネルごとにAIの設定をカスタマイズ
+- **環境変数による設定**: 安全で簡単な設定管理
+- **エラーハンドリング**: 堅牢なエラー処理とログ機能
+- **コマンドサポート**: 豊富なボットコマンド
 
+## 必要条件
 
-1. Python 3.x をインストールします。
+- Python 3.8以上
+- Discord Bot Token
+- OpenAI API Key (OpenAI使用時) または Ollama サーバー (Ollama使用時)
 
-2. 任意のディレクトリにこのプロジェクトをクローンまたはダウンロードします。
+## インストール
 
-3. 仮想環境をアクティブにします。
-
-
-仮想環境を ".venv" という名前で作成する場合、以下のコマンドを実行します。
-
-```
-$ python -m venv .venv
-$ source .venv/bin/activate
-```
-
-4. 以下のコマンドを実行し、必要なパッケージをインストールします。
-
-```
-$ pip install -r requirements.txt
+1. リポジトリをクローン
+```bash
+git clone <repository-url>
+cd ChatGPT_for_Discord
 ```
 
-この手順で、必要なパッケージが全てinstallされるはずです。
+2. 依存関係をインストール
+```bash
+pip install -r requirements.txt
+```
 
+3. 環境設定
+```bash
+cp .env.example .env
+# .env ファイルを編集して設定を記入
+```
 
+## 設定
+
+### 環境変数設定 (.env ファイル)
+
+```env
+# Discord設定
+DISCORD_TOKEN=your_discord_bot_token_here
+DISCORD_CHANNEL_IDS=123456789012345678,987654321098765432
+
+# AI プロバイダー設定
+AI_PROVIDER=ollama  # "openai" または "ollama"
+
+# OpenAI設定 (AI_PROVIDER=openai の場合)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-3.5-turbo
+
+# Ollama設定 (AI_PROVIDER=ollama の場合)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
+
+# 共通AI設定
+MAX_HISTORY=10
+TEMPERATURE=0.7
+```
+
+### Ollama セットアップ
+
+1. [Ollama](https://ollama.ai/) をインストール
+2. モデルをダウンロード:
+```bash
+ollama pull llama3.1
+```
+3. サーバーを起動:
+```bash
+ollama serve
+```
+
+## 実行
+
+```bash
+python src/ChatGPT_Discord.py
+```
 
 ## 使用方法
 
-src/ChatGPT_Discord.pyを実行する際に必要な手順は以下の通りです。
+### 基本コマンド
 
-1. Discordのbotアクセストークンを準備する
-2. botを反応させたいチャンネルIDを channel_id_1 に代入する
-3. OpenAIのAPIキーを取得してopenai.api_keyに記入してください。
-4. 上記が終わったら、python ChatGPT_Discord.pyでプログラムを起動してください。
+- `/gpt [メッセージ]` または `/ai [メッセージ]` - AIと対話
+- `/reset` - 会話履歴をリセットし、設定を変更
+- `/show` - 現在の設定を表示
+- `/stats` - 会話統計を表示
+- `/help` - ヘルプを表示
 
-上記に加え、Intents関連のエラーが発生する場合はお手元の環境に合わせて
-権限を付与したり書き換えたりして対応してください。
+### 使用例
 
-このプログラムにおいて発生した損害や、多額な請求については一切責任を負いません。
-自己責任でお願いします。
+```
+/ai こんにちは
+/gpt 今日の天気はどうですか？
+/reset
+/show
+/stats
+```
+
+## プロジェクト構造
+
+```
+ChatGPT_for_Discord/
+├── src/
+│   └── ChatGPT_Discord.py     # メインボットファイル
+├── config.py                  # 設定管理
+├── ai_client.py              # AI API クライアント
+├── conversation_manager.py   # 会話履歴管理
+├── utils.py                  # ユーティリティ関数
+├── requirements.txt          # 依存関係
+├── .env.example             # 環境変数テンプレート
+└── README.md                # このファイル
+```
+
+## 主な改善点
+
+1. **アーキテクチャの改善**
+   - モジュール化とクラスベース設計
+   - 関心の分離
+   - 再利用可能なコンポーネント
+
+2. **AI API 対応**
+   - OpenAI と Ollama の統一インターフェース
+   - 設定による動的切り替え
+   - 非同期処理対応
+
+3. **セキュリティ強化**
+   - 環境変数による設定管理
+   - API キーの安全な保存
+
+4. **エラーハンドリング**
+   - 包括的なエラー処理
+   - ログ機能
+   - ユーザーフレンドリーなエラーメッセージ
+
+5. **機能拡張**
+   - チャンネル別会話管理
+   - 統計情報表示
+   - タイムアウト処理
 
 ## ライセンス
 
 このプロジェクトは[MITライセンス](LICENSE.md)のもとで公開されています。
+
+## 貢献
+
+プルリクエストやイシューの報告を歓迎します。
