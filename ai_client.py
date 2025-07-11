@@ -26,21 +26,18 @@ class OpenAIClient(AIClient):
         self.model = model
         self.temperature = kwargs.get("temperature", 0.7)
         self.max_tokens = kwargs.get("max_tokens", None)
-        openai.api_key = api_key
+        self.client = openai.AsyncOpenAI(api_key=api_key)
     
     async def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> str:
         """OpenAI APIを使用して応答を生成"""
         try:
-            # OpenAIの新しいAPIクライアントを使用
-            response = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: openai.ChatCompletion.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    **kwargs
-                )
+            # 新しいOpenAI APIクライアントを使用
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                **kwargs
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -78,17 +75,27 @@ class OllamaClient(AIClient):
             payload["options"].update(kwargs["options"])
         
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
                 async with session.post(url, json=payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
+                        logger.error(f"Ollama API error {response.status}: {error_text}")
                         raise Exception(f"Ollama API error {response.status}: {error_text}")
                     
                     data = await response.json()
+                    
+                    # レスポンス形式の検証
+                    if "message" not in data or "content" not in data["message"]:
+                        logger.error(f"Invalid Ollama response format: {data}")
+                        raise Exception("Invalid response format from Ollama API")
+                    
                     return data["message"]["content"]
         except aiohttp.ClientError as e:
             logger.error(f"Ollama API connection error: {e}")
             raise Exception(f"Ollama APIへの接続に失敗しました: {e}")
+        except asyncio.TimeoutError:
+            logger.error("Ollama API timeout")
+            raise Exception("Ollama API request timed out")
         except Exception as e:
             logger.error(f"Ollama API error: {e}")
             raise
