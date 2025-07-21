@@ -4,15 +4,20 @@
 import logging
 import asyncio
 from typing import Optional
+from pathlib import Path
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
     """ログ設定を初期化"""
+    # ログディレクトリを作成
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('discord_bot.log', encoding='utf-8')
+            logging.FileHandler(log_dir / 'discord_bot.log', encoding='utf-8')
         ]
     )
     return logging.getLogger(__name__)

@@ -4,6 +4,9 @@
 
 echo "Discord ChatGPT/Ollama Bot を起動しています..."
 
+# ワーキングディレクトリを親フォルダに変更
+cd "$(dirname "$0")/.."
+
 # 仮想環境の確認
 if [ ! -d ".venv" ]; then
     echo "仮想環境が見つかりません。作成しています..."
@@ -30,9 +33,9 @@ pip install -r requirements.txt
 # .envファイルの確認
 if [ ! -f ".env" ]; then
     echo "警告: .env ファイルが見つかりません"
-    echo ".env.example をコピーして設定してください"
+    echo "config/.env.example をコピーして設定してください"
     echo ""
-    echo "cp .env.example .env"
+    echo "cp config/.env.example .env"
     echo ""
     exit 1
 fi

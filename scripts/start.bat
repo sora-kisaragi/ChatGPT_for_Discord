@@ -3,6 +3,9 @@ chcp 65001 > nul
 
 echo Discord ChatGPT/Ollama Bot を起動しています...
 
+REM ワーキングディレクトリを親フォルダに変更
+cd /d "%~dp0.."
+
 REM 仮想環境の確認
 if not exist ".venv" (
     echo 仮想環境が見つかりません。作成しています...
@@ -25,9 +28,9 @@ pip install -r requirements.txt
 REM .envファイルの確認
 if not exist ".env" (
     echo 警告: .env ファイルが見つかりません
-    echo .env.example をコピーして設定してください
+    echo config\.env.example をコピーして設定してください
     echo.
-    echo copy .env.example .env
+    echo copy config\.env.example .env
     echo.
     pause
     exit /b 1

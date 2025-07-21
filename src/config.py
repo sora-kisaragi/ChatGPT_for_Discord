@@ -48,7 +48,7 @@ class PromptConfig:
             self.settings = {}
 
 # 設定プロンプトの管理
-SETTINGS_FILE = "prompt_settings.json"
+SETTINGS_FILE = "config/prompt_settings.json"
 
 def load_config() -> tuple[AIConfig, DiscordConfig, PromptConfig]:
     """環境変数または設定ファイルから設定を読み込む"""
@@ -97,9 +97,6 @@ def load_config() -> tuple[AIConfig, DiscordConfig, PromptConfig]:
     prompt_config = load_prompt_settings()
     
     return ai_config, discord_config, prompt_config
-
-# 設定プロンプトの管理
-SETTINGS_FILE = "prompt_settings.json"
 
 def load_prompt_settings() -> PromptConfig:
     """プロンプト設定を読み込む"""

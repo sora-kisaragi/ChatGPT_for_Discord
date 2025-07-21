@@ -1,152 +1,180 @@
 # Discord ChatGPT/Ollama Bot
 
-OpenAI ChatGPT API �� Ollama API �̗����ɑΉ����� Discord Bot �ł��B
+OpenAI ChatGPT API と Ollama API の両方に対応した Discord Bot です。
 
-## ����
+## 特徴
 
-- **����AI�Ή�**: OpenAI ChatGPT �� Ollama �̗������T�|�[�g
-- **�`�����l���ʉ�b�Ǘ�**: �`�����l�����ƂɓƗ�������b����
-- **�ݒ�\�ȃv�����v�g**: �`�����l�����Ƃ�AI�̐ݒ���J�X�^�}�C�Y
-- **���ϐ��ɂ��ݒ�**: ���S�ŊȒP�Ȑݒ�Ǘ�
-- **�G���[�n���h�����O**: ���S�ȃG���[�����ƃ��O�@�\
-- **�R�}���h�T�|�[�g**: �L�x�ȃ{�b�g�R�}���h
+- **複数AI対応**: OpenAI ChatGPT と Ollama の両方をサポート
+- **チャンネル別会話管理**: チャンネルごとに独立した会話履歴
+- **設定可能なプロンプト**: チャンネルごとにAIの設定をカスタマイズ
+- **環境変数による設定**: 安全で簡単な設定管理
+- **エラーハンドリング**: 堅牢なエラー処理とログ機能
+- **コマンドサポート**: 豊富なボットコマンド
 
-## �K�v����
+## 必要条件
 
-- Python 3.8�ȏ�
+- Python 3.8以上
 - Discord Bot Token
-- OpenAI API Key (OpenAI�g�p��) �܂��� Ollama �T�[�o�[ (Ollama�g�p��)
+- OpenAI API Key (OpenAI使用時) または Ollama サーバー (Ollama使用時)
 
-## �C���X�g�[��
+## インストール
 
-1. ���|�W�g�����N���[��
+1. リポジトリをクローン
 ```bash
 git clone <repository-url>
 cd ChatGPT_for_Discord
 ```
 
-2. �ˑ��֌W���C���X�g�[��
+2. 依存関係をインストール
 ```bash
 pip install -r requirements.txt
 ```
 
-3. ���ݒ�
+3. 環境設定
 ```bash
-cp .env.example .env
-# .env �t�@�C����ҏW���Đݒ���L��
+cp config/.env.example .env
+# .env ファイルを編集して設定を記入
 ```
 
-## �ݒ�
+## 設定
 
-### ���ϐ��ݒ� (.env �t�@�C��)
+### 環境変数設定 (.env ファイル)
 
 ```env
-# Discord�ݒ�
+# Discord設定
 DISCORD_TOKEN=your_discord_bot_token_here
 DISCORD_CHANNEL_IDS=123456789012345678,987654321098765432
 
-# AI �v���o�C�_�[�ݒ�
-AI_PROVIDER=ollama  # "openai" �܂��� "ollama"
+# AI プロバイダー設定
+AI_PROVIDER=ollama  # "openai" または "ollama"
 
-# OpenAI�ݒ� (AI_PROVIDER=openai �̏ꍇ)
+# OpenAI設定 (AI_PROVIDER=openai の場合)
 OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-3.5-turbo
 
-# Ollama�ݒ� (AI_PROVIDER=ollama �̏ꍇ)
+# Ollama設定 (AI_PROVIDER=ollama の場合)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1
 
-# ����AI�ݒ�
+# 共通AI設定
 MAX_HISTORY=10
 TEMPERATURE=0.7
 ```
 
-### Ollama �Z�b�g�A�b�v
+### Ollama セットアップ
 
-1. [Ollama](https://ollama.ai/) ���C���X�g�[��
-2. ���f�����_�E�����[�h:
+1. [Ollama](https://ollama.ai/) をインストール
+2. モデルをダウンロード:
 ```bash
 ollama pull llama3.1
 ```
-3. �T�[�o�[���N��:
+3. サーバーを起動:
 ```bash
 ollama serve
 ```
 
-## ���s
+## 実行
+
+### 簡単起動（推奨）
+
+**Windows:**
+```bash
+scripts/start.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/start.sh
+scripts/start.sh
+```
+
+### 手動実行
 
 ```bash
 python src/ChatGPT_Discord.py
 ```
 
-## �g�p���@
+## 使用方法
 
-### ��{�R�}���h
+### 基本コマンド
 
-- `/gpt [���b�Z�[�W]` �܂��� `/ai [���b�Z�[�W]` - AI�ƑΘb
-- `/reset` - ��b���������Z�b�g���A�ݒ��ύX
-- `/show` - ���݂̐ݒ��\��
-- `/stats` - ��b���v��\��
-- `/help` - �w���v��\��
+- `/gpt [メッセージ]` または `/ai [メッセージ]` - AIと対話
+- `/reset` - 会話履歴をリセットし、設定を変更
+- `/show` - 現在の設定を表示
+- `/stats` - 会話統計を表示
+- `/help` - ヘルプを表示
 
-### �g�p��
+### 使用例
 
 ```
-/ai ����ɂ���
-/gpt �����̓V�C�͂ǂ��ł����H
+/ai こんにちは
+/gpt 今日の天気はどうですか？
 /reset
 /show
 /stats
 ```
 
-## �v���W�F�N�g�\��
+## プロジェクト構造
 
 ```
 ChatGPT_for_Discord/
-������ src/
-��   ������ ChatGPT_Discord.py     # ���C���{�b�g�t�@�C��
-��   ������ ai_client.py           # AI API �N���C�A���g
-��   ������ config.py              # �ݒ�Ǘ�
-��   ������ conversation_manager.py # ��b�����Ǘ�
-��   ������ check_channels.py      # �`�����l���m�F�@�\
-��   ������ utils.py               # ���[�e�B���e�B�֐�
-������ requirements.txt           # �ˑ��֌W
-������ .env.example              # ���ϐ��e���v���[�g
-������ start.bat                 # Windows�N���X�N���v�g
-������ start.sh                  # Linux/Mac�N���X�N���v�g
-������ README.md                 # ���̃t�@�C��
+├── src/                       # ソースコード
+│   ├── ChatGPT_Discord.py     # メインボットファイル
+│   ├── ai_client.py           # AI API クライアント
+│   ├── config.py              # 設定管理
+│   ├── conversation_manager.py # 会話履歴管理
+│   ├── check_channels.py      # チャンネル確認機能
+│   └── utils.py               # ユーティリティ関数
+├── config/                    # 設定ファイル
+│   └── .env.example           # 環境変数テンプレート
+├── scripts/                   # 実行スクリプト
+│   ├── start.bat              # Windows起動スクリプト
+│   └── start.sh               # Linux/Mac起動スクリプト
+├── docs/                      # ドキュメント
+│   ├── USAGE.md               # 使用方法詳細
+│   └── LICENSE.md             # ライセンス
+├── logs/                      # ログファイル（自動生成）
+├── requirements.txt           # 依存関係
+└── README.md                  # このファイル
 ```
 
-## ��ȉ��P�_
+## 主な改善点
 
-1. **�A�[�L�e�N�`���̉��P**
-   - ���W���[�����ƃN���X�x�[�X�݌v
-   - �֐S�̕���
-   - �ė��p�\�ȃR���|�[�l���g
+1. **プロジェクト構造の整理**
+   - `src/` フォルダにソースコードを集約
+   - `config/` フォルダで設定ファイルを管理
+   - `scripts/` フォルダで実行スクリプトを整理
+   - `docs/` フォルダでドキュメントを管理
+   - `logs/` フォルダでログファイルを分離
 
-2. **AI API �Ή�**
-   - OpenAI �� Ollama �̓���C���^�[�t�F�[�X
-   - �ݒ�ɂ�铮�I�؂�ւ�
-   - �񓯊������Ή�
+2. **アーキテクチャの改善**
+   - モジュール化とクラスベース設計
+   - 関心の分離
+   - 再利用可能なコンポーネント
 
-3. **�Z�L�����e�B����**
-   - ���ϐ��ɂ��ݒ�Ǘ�
-   - API �L�[�̈��S�ȕۑ�
+2. **AI API 対応**
+   - OpenAI と Ollama の統一インターフェース
+   - 設定による動的切り替え
+   - 非同期処理対応
 
-4. **�G���[�n���h�����O**
-   - ��I�ȃG���[����
-   - ���O�@�\
-   - ���[�U�[�t�����h���[�ȃG���[���b�Z�[�W
+3. **セキュリティ強化**
+   - 環境変数による設定管理
+   - API キーの安全な保存
 
-5. **�@�\�g��**
-   - �`�����l���ʉ�b�Ǘ�
-   - ���v���\��
-   - �^�C���A�E�g����
+4. **エラーハンドリング**
+   - 包括的なエラー処理
+   - ログ機能
+   - ユーザーフレンドリーなエラーメッセージ
 
-## ���C�Z���X
+5. **機能拡張**
+   - チャンネル別会話管理
+   - 統計情報表示
+   - タイムアウト処理
 
-���̃v���W�F�N�g��[MIT���C�Z���X](LICENSE.md)�̂��ƂŌ��J����Ă��܂��B
+## ライセンス
 
-## �v��
+このプロジェクトは[MITライセンス](docs/LICENSE.md)のもとで公開されています。
 
-�v�����N�G�X�g��C�V���[�̕񍐂����}���܂��B
+## 貢献
+
+プルリクエストやイシューの報告を歓迎します。

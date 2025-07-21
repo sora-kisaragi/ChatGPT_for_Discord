@@ -1,10 +1,29 @@
+# Python環境
 .venv/
-Kaede_Discord.py
-Salome_DIscord.py
-.env
+venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# 古いファイル
+Kaede_Discord.py
+Salome_DIscord.py
+
+# 環境設定
+.env
+
+# データベース
 *.sqlite3
 *.db
+
+# ログ
+logs/
 *.log
-prompt_settings.json
+
+# 設定ファイル
+config/prompt_settings.json
+
+# OS関連
+.DS_Store
+Thumbs.db
