@@ -4,3 +4,7 @@ Salome_DIscord.py
 .env
 __pycache__/
 *.pyc
+discord_bot.log
+*.sqlite3
+*.db
+*.log
