@@ -19,6 +19,7 @@ from config import load_config, DEFAULT_SETTING, get_channel_prompt, set_channel
 from ai_client import create_ai_client, AIClient
 from conversation_manager import ConversationManager
 from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, extract_command_content
+from voice_handler import VoiceHandler
 
 # 環境変数を読み込み
 load_dotenv()
@@ -44,6 +45,9 @@ class ChatBot:
         )
         
         self.conversation_manager = ConversationManager(max_history=self.ai_config.max_history)
+        
+        # 音声ハンドラー初期化
+        self.voice_handler = VoiceHandler()
         
         # Discord Bot設定
         intents = discord.Intents.default()
@@ -237,6 +241,27 @@ class ChatBot:
         
         # グループコマンドをツリーに追加
         self.bot.tree.add_command(setting_group)
+        
+        # 音声関連のコマンド
+        @self.bot.tree.command(name="tel", description="ボイスチャンネルでAIと対話します")
+        async def tel_command(interaction: discord.Interaction):
+            """ボイスチャンネルでAIと対話するコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_tel_slash_command(interaction)
+        
+        @self.bot.tree.command(name="voice", description="入力したテキストを音声に変換して送信します")
+        async def voice_command(interaction: discord.Interaction, text: str):
+            """テキストを音声に変換して送信するコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_voice_slash_command(interaction, text)
     
     async def _handle_ai_slash_command(self, interaction: discord.Interaction, prompt: str):
         """AI対話スラッシュコマンドの処理"""
@@ -362,6 +387,10 @@ class ChatBot:
 💾 `/setting save [prompt]` - プロンプトを保存
 🔄 `/setting reset` - デフォルト設定に戻す
 
+**音声機能:**
+🎤 `/tel` - ボイスチャンネルでAIと対話
+🔊 `/voice [text]` - テキストを音声に変換して送信
+
 **現在の設定:**
 🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
 🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
@@ -466,6 +495,67 @@ class ChatBot:
         except asyncio.TimeoutError:
             await interaction.followup.send("⏰ タイムアウトしました。プロンプト編集をキャンセルします。")
     
+    async def _handle_tel_slash_command(self, interaction: discord.Interaction):
+        """ボイスチャンネルでAIと対話するコマンドの処理"""
+        # ユーザーがボイスチャンネルに接続しているか確認
+        if not interaction.user.voice:
+            await interaction.response.send_message("ボイスチャンネルに接続してから実行してください。", ephemeral=True)
+            return
+        
+        voice_channel = interaction.user.voice.channel
+        
+        # 応答を遅延させる（処理時間が長い場合）
+        await interaction.response.defer()
+        
+        # ボイスチャンネルに接続
+        success = await self.voice_handler.join_voice_channel(voice_channel)
+        if not success:
+            await interaction.followup.send("ボイスチャンネルへの接続に失敗しました。")
+            return
+        
+        await interaction.followup.send(
+            f"{voice_channel.name}に接続して音声対話を開始します。\n"
+            "音声認識後にAIが応答します。(この機能はまだ開発中です)"
+        )
+        
+        logger.info(f"ボイス対話コマンド実行: {interaction.user.name}, チャンネル: {voice_channel.name}")
+        
+        # TODO: 以下の機能を順次実装予定
+        # 1. ボイスチャンネル接続（実装済み）
+        # 2. 音声データ取得
+        # 3. Whisperによる音声認識
+        # 4. LLMによるテキスト生成
+        # 5. GPT-SoVITSによる音声合成
+        # 6. 音声再生
+    
+    async def _handle_voice_slash_command(self, interaction: discord.Interaction, text: str):
+        """テキストを音声に変換して送信するコマンドの処理"""
+        await interaction.response.defer()
+        
+        logger.info(f"音声生成コマンド実行: {interaction.user.name}, テキスト: {text}")
+        
+        try:
+            # TODO: GPT-SoVITSによる音声合成を実装予定
+            # 音声合成は今後実装
+            synthesized_audio = await self.voice_handler.synthesize_speech(text)
+            
+            if synthesized_audio:
+                # 音声ファイルが生成できた場合、添付ファイルとして送信
+                await interaction.followup.send(
+                    f"生成された音声ファイルです:", 
+                    file=discord.File(synthesized_audio, filename="generated_voice.mp3")
+                )
+            else:
+                # 現段階ではテキストのみ返信
+                await interaction.followup.send(
+                    f"音声生成リクエスト受付（この機能はまだ開発中です）\n"
+                    f"入力テキスト: {text}\n"
+                    f"今後、このテキストを元に音声ファイルが生成されます。"
+                )
+        except Exception as e:
+            logger.error(f"音声生成エラー: {e}", exc_info=True)
+            await interaction.followup.send(f"音声生成中にエラーが発生しました: {e}")
+    
     async def _send_login_message(self):
         """登録チャンネルにログインメッセージを送信"""
         if not self.discord_config.channel_ids:
@@ -487,6 +577,8 @@ class ChatBot:
 📊 `/stats` - 会話統計を表示
 👁️ `/show` - 現在の設定を表示
 ❓ `/help` - ヘルプを表示
+🎤 `/tel` - ボイスチャンネルでAIと対話
+🔊 `/voice [text]` - テキストを音声に変換
 
 **プロンプト設定コマンド:**
 📝 `/setting edit` - プロンプトを対話的に編集
