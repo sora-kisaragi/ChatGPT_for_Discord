@@ -48,10 +48,26 @@ class ChatBot:
         # Discord Bot設定
         intents = discord.Intents.default()
         intents.message_content = True
-        self.bot = commands.Bot(command_prefix='/', intents=intents)
+        intents.guilds = True  # ギルド情報の取得に必要
+        
+        # Bot初期化時にコマンドの自動同期を有効化
+        self.bot = commands.Bot(
+            command_prefix='/', 
+            intents=intents,
+            sync_commands=True,  # コマンドの自動同期
+            sync_commands_debug=True,  # デバッグ情報の出力
+            application_id=int(os.getenv("BOT_APPLICATION_ID", "0"))  # アプリケーションID
+        )
         
         # イベントハンドラー登録
         self._setup_events()
+        
+        # スラッシュコマンド登録
+        self._setup_slash_commands()
+        logger.info("スラッシュコマンドを設定しました")
+        logger.info(f"登録されたコマンド数: {len(self.bot.tree.get_commands())}")
+        for cmd in self.bot.tree.get_commands():
+            logger.info(f"  - /{cmd.name}: {cmd.description}")
         
         logger.info(f"Bot initialized with AI provider: {self.ai_config.provider}")
     
@@ -67,12 +83,40 @@ class ChatBot:
             else:
                 logger.info('全チャンネルを監視中')
             
+            # スラッシュコマンドを同期
+            try:
+                logger.info("スラッシュコマンドの同期を開始...")
+                
+                # グローバル同期（全サーバー対応）
+                synced = await self.bot.tree.sync()
+                logger.info(f"グローバルスラッシュコマンドを同期しました: {len(synced)}個のコマンド")
+                
+                # 同期されたコマンドのリストを表示
+                for command in synced:
+                    logger.info(f"  - /{command.name}: {command.description}")
+                
+                # 開発用：特定のギルドで即座に同期（本番では削除推奨）
+                if os.getenv("DEV_GUILD_ID"):
+                    dev_guild_id = int(os.getenv("DEV_GUILD_ID"))
+                    guild = discord.Object(id=dev_guild_id)
+                    try:
+                        dev_synced = await self.bot.tree.sync(guild=guild)
+                        logger.info(f"開発ギルドでコマンド同期: {len(dev_synced)}個")
+                    except Exception as e:
+                        logger.error(f"開発ギルド同期エラー: {e}")
+                
+            except Exception as e:
+                logger.error(f"スラッシュコマンドの同期に失敗しました: {e}", exc_info=True)
+                # 詳細なエラー情報を表示
+                if hasattr(e, 'response'):
+                    logger.error(f"HTTP Status: {e.response.status}")
+                    logger.error(f"Response: {await e.response.text()}")
+            
             # 登録チャンネルにログインメッセージを送信
             await self._send_login_message()
         
         @self.bot.event
         async def on_message(message):
-
             # 📝 すべてのメッセージをログに記録
             logger.info(f"[MESSAGE] Server: {message.guild.name if message.guild else 'DM'} | "
                        f"Channel: #{message.channel.name if hasattr(message.channel, 'name') else 'DM'} ({message.channel.id}) | "
@@ -87,156 +131,119 @@ class ChatBot:
             if not validate_channel_access(message.channel.id, self.discord_config.channel_ids):
                 return
             
-            await self._handle_message(message)
+            # コマンド処理を行う
+            await self.bot.process_commands(message)
     
-    async def _handle_message(self, message):
-        """メッセージ処理のメインロジック"""
-        channel = message.channel
-        channel_id = channel.id
+    def _setup_slash_commands(self):
+        """スラッシュコマンドを設定"""
         
-        try:
-            # コマンド処理
-            content = message.content.strip()
-            if content.startswith('/reset'):
-                await self._handle_reset_command(message)
-            elif content.startswith('/show'):
-                await self._handle_show_command(message)
-            elif content.startswith('/stats'):
-                await self._handle_stats_command(message)
-            elif content.startswith('/help'):
-                await self._handle_help_command(message)
-            elif content.startswith('/setting'):
-                await self._handle_setting_command(message)
-            elif content.startswith('/gpt') or content.startswith('/ai'):
-                await self._handle_ai_command(message)
-            elif content.startswith('/'):
-                # 不明なコマンド
-                await safe_send_message(
-                    channel, 
-                    "不明なコマンドです。`/help` で利用可能なコマンドを確認してください。"
-                )
-        
-        except Exception as e:
-            logger.error(f"Error handling message: {e}", exc_info=True)
-            await safe_send_message(
-                channel, 
-                "申し訳ございません。処理中にエラーが発生いたしました。管理者にお問い合わせください。"
-            )
-    
-    async def _handle_reset_command(self, message):
-        """リセットコマンドの処理"""
-        channel = message.channel
-        channel_id = channel.id
-        
-        await safe_send_message(
-            channel, 
-            'AIを初期化します。\n設定を変更する場合は新しい設定を送信してください。\n設定を変更しない場合は `/default` を入力してください。'
-        )
-        
-        def check(m):
-            return m.author == message.author and m.channel == channel
-        
-        try:
-            msg = await self.bot.wait_for('message', check=check, timeout=300.0)  # 5分タイムアウト
+        @self.bot.tree.command(name="gpt", description="AIと対話します")
+        async def gpt_command(interaction: discord.Interaction, prompt: str):
+            """AIと対話するスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
             
-            if msg.content == "/default":
-                # チャンネル固有の設定があればそれを使用、なければデフォルト設定
-                new_setting = get_channel_prompt(channel_id, self.prompt_config)
-            else:
-                new_setting = msg.content
+            await self._handle_ai_slash_command(interaction, prompt)
+        
+        @self.bot.tree.command(name="ai", description="AIと対話します（gptコマンドと同じ）")
+        async def ai_command(interaction: discord.Interaction, prompt: str):
+            """AIと対話するスラッシュコマンド（エイリアス）"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
             
-            self.conversation_manager.reset_conversation(channel_id, new_setting)
+            await self._handle_ai_slash_command(interaction, prompt)
+        
+        @self.bot.tree.command(name="reset", description="会話履歴をリセットします")
+        async def reset_command(interaction: discord.Interaction):
+            """会話リセットのスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
             
-            await safe_send_message(channel, "初期化を行いました。")
-            logger.info(f"Channel {channel_id}: Conversation reset")
+            await self._handle_reset_slash_command(interaction)
+        
+        @self.bot.tree.command(name="show", description="現在の設定を表示します")
+        async def show_command(interaction: discord.Interaction):
+            """設定表示のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
             
-        except asyncio.TimeoutError:
-            await safe_send_message(channel, "タイムアウトしました。リセットをキャンセルします。")
+            await self._handle_show_slash_command(interaction)
+        
+        @self.bot.tree.command(name="stats", description="会話統計を表示します")
+        async def stats_command(interaction: discord.Interaction):
+            """統計表示のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_stats_slash_command(interaction)
+        
+        @self.bot.tree.command(name="help", description="ヘルプを表示します")
+        async def help_command(interaction: discord.Interaction):
+            """ヘルプ表示のスラッシュコマンド"""
+            await self._handle_help_slash_command(interaction)
+        
+        # プロンプト設定用のグループコマンド
+        setting_group = discord.app_commands.Group(name="setting", description="プロンプト設定を管理します")
+        
+        @setting_group.command(name="show", description="現在のプロンプト設定を表示します")
+        async def setting_show_command(interaction: discord.Interaction):
+            """プロンプト設定表示のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_setting_show_slash_command(interaction)
+        
+        @setting_group.command(name="save", description="新しいプロンプトを保存します")
+        async def setting_save_command(interaction: discord.Interaction, prompt: str):
+            """プロンプト保存のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_setting_save_slash_command(interaction, prompt)
+        
+        @setting_group.command(name="reset", description="プロンプトをデフォルト設定に戻します")
+        async def setting_reset_command(interaction: discord.Interaction):
+            """プロンプトリセットのスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_setting_reset_slash_command(interaction)
+        
+        @setting_group.command(name="edit", description="プロンプトを対話的に編集します")
+        async def setting_edit_command(interaction: discord.Interaction):
+            """プロンプト編集のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_setting_edit_slash_command(interaction)
+        
+        # グループコマンドをツリーに追加
+        self.bot.tree.add_command(setting_group)
     
-    async def _handle_show_command(self, message):
-        """設定表示コマンドの処理"""
-        channel_id = message.channel.id
-        current_setting = self.conversation_manager.get_system_setting(channel_id)
-        
-        show_text = f"""⚙️ **現在の設定 - #{message.channel.name}**
-
-**AI設定:**
-🔹 プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
-🔹 最大履歴: `{self.ai_config.max_history}件`
-🔹 温度設定: `{self.ai_config.temperature}`
-🔹 最大トークン: `{self.ai_config.max_tokens if self.ai_config.max_tokens else '制限なし'}`
-
-**システム設定:**
-{current_setting[:500] + '...' if current_setting and len(current_setting) > 500 else current_setting or 'デフォルト設定'}"""
-        
-        await safe_send_message(message.channel, show_text)
-    
-    async def _handle_stats_command(self, message):
-        """統計コマンドの処理"""
-        channel_id = message.channel.id
-        stats = self.conversation_manager.get_conversation_stats(channel_id)
-        
-        stats_text = f"""📊 **会話統計 - #{message.channel.name}**
-
-💬 総メッセージ数: `{stats['total_messages']}件`
-👤 ユーザーメッセージ: `{stats['user_messages']}件`
-🤖 AIメッセージ: `{stats['assistant_messages']}件`
-⚙️ システムメッセージ: `{stats['system_messages']}件`
-
-**設定情報:**
-🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
-🔹 最大履歴: `{self.ai_config.max_history}件`
-🔹 温度設定: `{self.ai_config.temperature}`"""
-        
-        await safe_send_message(message.channel, stats_text)
-    
-    async def _handle_help_command(self, message):
-        """ヘルプコマンドの処理"""
-        help_text = f"""🤖 **{self.bot.user.name} の使用方法**
-
-**AIと対話:**
-📝 `/gpt [メッセージ]` または `/ai [メッセージ]`
-例: `/gpt こんにちは！`
-
-**設定・管理:**
-🔄 `/reset` - 会話履歴をリセット
-⚙️ `/setting` - プロンプト設定を管理
-📊 `/stats` - 会話統計を表示
-👁️ `/show` - 現在の設定を表示
-❓ `/help` - このヘルプを表示
-
-**プロンプト設定コマンド:**
-📝 `/setting edit` - プロンプトを編集
-👁️ `/setting show` - 現在のプロンプトを表示
-💾 `/setting save [プロンプト]` - プロンプトを保存
-🔄 `/setting reset` - デフォルト設定に戻す
-
-**現在の設定:**
-🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
-🔹 最大履歴: `{self.ai_config.max_history}件`
-
-お気軽にお話しください！"""
-        
-        await safe_send_message(message.channel, help_text)
-    
-    async def _handle_ai_command(self, message):
-        """AI対話コマンドの処理"""
-        channel = message.channel
-        channel_id = channel.id
-        
-        # コマンド部分を除去
-        command = '/gpt' if message.content.startswith('/gpt') else '/ai'
-        user_input = extract_command_content(message.content, command)
-        
-        if not user_input.strip():
-            await safe_send_message(channel, "メッセージを入力してください。例: `/gpt こんにちは`")
-            return
+    async def _handle_ai_slash_command(self, interaction: discord.Interaction, prompt: str):
+        """AI対話スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
         
         # ログ出力
-        logger.info(f"User: {message.author} ({message.author.id}) | Content: {user_input}")
+        logger.info(f"User: {interaction.user} ({interaction.user.id}) | Content: {prompt}")
         
         # 初回の場合はシステム設定を追加
         if not self.conversation_manager.get_messages(channel_id):
@@ -247,21 +254,22 @@ class ChatBot:
                 self.conversation_manager.set_system_setting(channel_id, channel_prompt)
         
         # ユーザーメッセージを履歴に追加
-        self.conversation_manager.add_message(channel_id, "user", user_input)
+        self.conversation_manager.add_message(channel_id, "user", prompt)
         
         try:
-            # タイピング表示
-            async with channel.typing():
-                # AI応答生成
-                messages = self.conversation_manager.get_messages(channel_id)
-                ai_response = await self.ai_client.generate_response(messages)
+            # 応答を遅延させる（処理時間が長い場合）
+            await interaction.response.defer()
+            
+            # AI応答生成
+            messages = self.conversation_manager.get_messages(channel_id)
+            ai_response = await self.ai_client.generate_response(messages)
             
             # 応答を履歴に追加
             self.conversation_manager.add_message(channel_id, "assistant", ai_response)
             
             # 応答を整形して送信
             formatted_response = format_response_text(ai_response)
-            await safe_send_message(channel, formatted_response)
+            await interaction.followup.send(formatted_response)
             
             logger.info(f"AI Response: {ai_response[:100]}...")
             
@@ -274,12 +282,189 @@ class ChatBot:
             else:
                 error_msg = f"AI API でエラーが発生しました。\nプロバイダー: {self.ai_config.provider}\nエラー: {str(e)}"
             
-            await safe_send_message(channel, error_msg)
+            if interaction.response.is_done():
+                await interaction.followup.send(error_msg)
+            else:
+                await interaction.response.send_message(error_msg)
             
             # エラー時は最後のユーザーメッセージを削除
             messages = self.conversation_manager.get_messages(channel_id)
             if messages and messages[-1]["role"] == "user":
                 messages.pop()
+    
+    async def _handle_reset_slash_command(self, interaction: discord.Interaction):
+        """リセットスラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        
+        # チャンネル固有の設定があればそれを使用、なければデフォルト設定
+        new_setting = get_channel_prompt(channel_id, self.prompt_config)
+        self.conversation_manager.reset_conversation(channel_id, new_setting)
+        
+        await interaction.response.send_message("✅ 会話履歴をリセットしました。")
+        logger.info(f"Channel {channel_id}: Conversation reset")
+    
+    async def _handle_show_slash_command(self, interaction: discord.Interaction):
+        """設定表示スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        current_setting = self.conversation_manager.get_system_setting(channel_id)
+        
+        show_text = f"""⚙️ **現在の設定 - <#{channel_id}>**
+
+**AI設定:**
+🔹 プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 最大履歴: `{self.ai_config.max_history}件`
+🔹 温度設定: `{self.ai_config.temperature}`
+🔹 最大トークン: `{self.ai_config.max_tokens if self.ai_config.max_tokens else '制限なし'}`
+
+**システム設定:**
+{current_setting[:500] + '...' if current_setting and len(current_setting) > 500 else current_setting or 'デフォルト設定'}"""
+        
+        await interaction.response.send_message(show_text)
+    
+    async def _handle_stats_slash_command(self, interaction: discord.Interaction):
+        """統計スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        stats = self.conversation_manager.get_conversation_stats(channel_id)
+        
+        stats_text = f"""📊 **会話統計 - <#{channel_id}>**
+
+💬 総メッセージ数: `{stats['total_messages']}件`
+👤 ユーザーメッセージ: `{stats['user_messages']}件`
+🤖 AIメッセージ: `{stats['assistant_messages']}件`
+⚙️ システムメッセージ: `{stats['system_messages']}件`
+
+**設定情報:**
+🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 最大履歴: `{self.ai_config.max_history}件`
+🔹 温度設定: `{self.ai_config.temperature}`"""
+        
+        await interaction.response.send_message(stats_text)
+    
+    async def _handle_help_slash_command(self, interaction: discord.Interaction):
+        """ヘルプスラッシュコマンドの処理"""
+        help_text = f"""🤖 **{self.bot.user.name} の使用方法**
+
+**AIと対話:**
+📝 `/gpt [prompt]` または `/ai [prompt]` - AIと対話
+例: `/gpt こんにちは！`
+
+**設定・管理:**
+🔄 `/reset` - 会話履歴をリセット
+📊 `/stats` - 会話統計を表示
+👁️ `/show` - 現在の設定を表示
+❓ `/help` - このヘルプを表示
+
+**プロンプト設定コマンド:**
+📝 `/setting edit` - プロンプトを対話的に編集
+👁️ `/setting show` - 現在のプロンプトを表示
+💾 `/setting save [prompt]` - プロンプトを保存
+🔄 `/setting reset` - デフォルト設定に戻す
+
+**現在の設定:**
+🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 最大履歴: `{self.ai_config.max_history}件`
+
+お気軽にお話しください！"""
+        
+        await interaction.response.send_message(help_text)
+    
+    async def _handle_setting_show_slash_command(self, interaction: discord.Interaction):
+        """プロンプト設定表示スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        current_prompt = get_channel_prompt(channel_id, self.prompt_config)
+        is_custom = str(channel_id) in self.prompt_config.settings
+        
+        show_text = f"""📋 **現在のプロンプト設定 - <#{channel_id}>**
+
+**タイプ:** {"🔧 カスタム設定" if is_custom else "📋 デフォルト設定"}
+
+**プロンプト内容:**
+```
+{current_prompt}
+```"""
+        
+        # Discordのメッセージ長制限（2000文字）を考慮
+        if len(show_text) > 1900:
+            show_text = show_text[:1900] + "...\n```\n*（プロンプトが長いため省略されました）*"
+        
+        await interaction.response.send_message(show_text)
+    
+    async def _handle_setting_save_slash_command(self, interaction: discord.Interaction, prompt: str):
+        """プロンプト保存スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        
+        if not prompt.strip():
+            await interaction.response.send_message("プロンプトが空です。", ephemeral=True)
+            return
+        
+        # プロンプトを保存
+        set_channel_prompt(channel_id, prompt, self.prompt_config)
+        
+        # 現在の会話をリセット
+        self.conversation_manager.reset_conversation(channel_id, prompt)
+        
+        await interaction.response.send_message("✅ プロンプトを保存し、会話をリセットしました。")
+        logger.info(f"Channel {channel_id}: Custom prompt saved")
+    
+    async def _handle_setting_reset_slash_command(self, interaction: discord.Interaction):
+        """プロンプトリセットスラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        
+        # デフォルト設定に戻す
+        delete_channel_prompt(channel_id, self.prompt_config)
+        
+        # 会話をデフォルト設定でリセット
+        self.conversation_manager.reset_conversation(channel_id, DEFAULT_SETTING)
+        
+        await interaction.response.send_message("✅ プロンプトをデフォルト設定に戻し、会話をリセットしました。")
+        logger.info(f"Channel {channel_id}: Prompt reset to default")
+    
+    async def _handle_setting_edit_slash_command(self, interaction: discord.Interaction):
+        """プロンプト編集スラッシュコマンドの処理"""
+        channel_id = interaction.channel_id
+        current_prompt = get_channel_prompt(channel_id, self.prompt_config)
+        
+        edit_text = f"""✏️ **プロンプト編集モード - <#{channel_id}>**
+
+**現在のプロンプト:**
+```
+{current_prompt[:500] + '...' if len(current_prompt) > 500 else current_prompt}
+```
+
+新しいプロンプトを入力してください（5分以内）。
+キャンセルする場合は `cancel` を入力してください。"""
+        
+        await interaction.response.send_message(edit_text)
+        
+        def check(m):
+            return m.author == interaction.user and m.channel.id == channel_id
+        
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=300.0)
+            
+            if response.content.strip().lower() == "cancel":
+                await response.reply("プロンプト編集をキャンセルしました。")
+                return
+            
+            new_prompt = response.content.strip()
+            if not new_prompt:
+                await response.reply("プロンプトが空です。編集をキャンセルしました。")
+                return
+            
+            # プロンプトを保存
+            set_channel_prompt(channel_id, new_prompt, self.prompt_config)
+            
+            # 現在の会話をリセット
+            self.conversation_manager.reset_conversation(channel_id, new_prompt)
+            
+            await response.reply("✅ プロンプトを更新し、会話をリセットしました。")
+            logger.info(f"Channel {channel_id}: Custom prompt updated")
+            
+        except asyncio.TimeoutError:
+            await interaction.followup.send("⏰ タイムアウトしました。プロンプト編集をキャンセルします。")
     
     async def _send_login_message(self):
         """登録チャンネルにログインメッセージを送信"""
@@ -295,15 +480,21 @@ class ChatBot:
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`
 
-**利用可能なコマンド:**
-📝 `/gpt [メッセージ]` または `/ai [メッセージ]` - AIと対話
+**利用可能なスラッシュコマンド:**
+📝 `/gpt [prompt]` または `/ai [prompt]` - AIと対話
 🔄 `/reset` - 会話履歴をリセット
-⚙️ `/setting` - プロンプト設定を管理
+⚙️ `/setting` グループ - プロンプト設定を管理
 📊 `/stats` - 会話統計を表示
 👁️ `/show` - 現在の設定を表示
 ❓ `/help` - ヘルプを表示
 
-準備完了です！お気軽にお話しください。"""
+**プロンプト設定コマンド:**
+📝 `/setting edit` - プロンプトを対話的に編集
+👁️ `/setting show` - 現在のプロンプトを表示
+💾 `/setting save [prompt]` - プロンプトを保存
+🔄 `/setting reset` - デフォルト設定に戻す
+
+準備完了です！チャット欄で `/` を入力するとコマンド一覧が表示されます。"""
 
         successful_channels = []
         failed_channels = []
@@ -327,137 +518,6 @@ class ChatBot:
             logger.info(f"ログインメッセージ送信成功: {', '.join(successful_channels)}")
         if failed_channels:
             logger.warning(f"ログインメッセージ送信失敗: {', '.join(failed_channels)}")
-    
-    async def _handle_setting_command(self, message):
-        """設定プロンプトコマンドの処理"""
-        channel = message.channel
-        channel_id = channel.id
-        content = message.content.strip()
-        
-        # コマンドの引数を解析
-        parts = content.split(' ', 1)
-        
-        if len(parts) == 1:
-            # `/setting` のみの場合：現在の設定を表示
-            current_prompt = get_channel_prompt(channel_id, self.prompt_config)
-            is_custom = str(channel_id) in self.prompt_config.settings
-            
-            setting_text = f"""⚙️ **プロンプト設定 - #{channel.name}**
-
-**現在の設定:**
-{"🔧 カスタム設定" if is_custom else "📋 デフォルト設定"}
-
-**利用可能なコマンド:**
-📝 `/setting edit` - プロンプトを編集
-👁️ `/setting show` - 現在のプロンプトを全文表示
-🔄 `/setting reset` - デフォルト設定に戻す
-💾 `/setting save [プロンプト]` - 新しいプロンプトを保存
-
-例: `/setting save あなたは優しいアシスタントです。`"""
-            
-            await safe_send_message(channel, setting_text)
-            return
-        
-        subcommand = parts[1].strip()
-        
-        if subcommand == "show":
-            # 現在のプロンプトを全文表示
-            current_prompt = get_channel_prompt(channel_id, self.prompt_config)
-            is_custom = str(channel_id) in self.prompt_config.settings
-            
-            show_text = f"""📋 **現在のプロンプト設定 - #{channel.name}**
-
-**タイプ:** {"🔧 カスタム設定" if is_custom else "📋 デフォルト設定"}
-
-**プロンプト内容:**
-```
-{current_prompt}
-```"""
-            
-            # Discordのメッセージ長制限（2000文字）を考慮
-            if len(show_text) > 1900:
-                show_text = show_text[:1900] + "...\n```\n*（プロンプトが長いため省略されました）*"
-            
-            await safe_send_message(channel, show_text)
-            
-        elif subcommand == "edit":
-            # プロンプト編集モード
-            current_prompt = get_channel_prompt(channel_id, self.prompt_config)
-            
-            edit_text = f"""✏️ **プロンプト編集モード - #{channel.name}**
-
-**現在のプロンプト:**
-```
-{current_prompt[:500] + '...' if len(current_prompt) > 500 else current_prompt}
-```
-
-新しいプロンプトを入力してください（5分以内）。
-キャンセルする場合は `/cancel` を入力してください。"""
-            
-            await safe_send_message(channel, edit_text)
-            
-            def check(m):
-                return m.author == message.author and m.channel == channel
-            
-            try:
-                response = await self.bot.wait_for('message', check=check, timeout=300.0)
-                
-                if response.content.strip() == "/cancel":
-                    await safe_send_message(channel, "プロンプト編集をキャンセルしました。")
-                    return
-                
-                new_prompt = response.content.strip()
-                if not new_prompt:
-                    await safe_send_message(channel, "プロンプトが空です。編集をキャンセルしました。")
-                    return
-                
-                # プロンプトを保存
-                set_channel_prompt(channel_id, new_prompt, self.prompt_config)
-                
-                # 現在の会話をリセット
-                self.conversation_manager.reset_conversation(channel_id, new_prompt)
-                
-                await safe_send_message(channel, "✅ プロンプトを更新し、会話をリセットしました。")
-                logger.info(f"Channel {channel_id}: Custom prompt updated")
-                
-            except asyncio.TimeoutError:
-                await safe_send_message(channel, "⏰ タイムアウトしました。プロンプト編集をキャンセルします。")
-        
-        elif subcommand.startswith("save "):
-            # 直接プロンプトを保存
-            new_prompt = subcommand[5:].strip()  # "save " を除去
-            
-            if not new_prompt:
-                await safe_send_message(channel, "プロンプトが空です。例: `/setting save あなたは優しいアシスタントです。`")
-                return
-            
-            # プロンプトを保存
-            set_channel_prompt(channel_id, new_prompt, self.prompt_config)
-            
-            # 現在の会話をリセット
-            self.conversation_manager.reset_conversation(channel_id, new_prompt)
-            
-            await safe_send_message(channel, "✅ プロンプトを保存し、会話をリセットしました。")
-            logger.info(f"Channel {channel_id}: Custom prompt saved")
-        
-        elif subcommand == "reset":
-            # デフォルト設定に戻す
-            delete_channel_prompt(channel_id, self.prompt_config)
-            
-            # 会話をデフォルト設定でリセット
-            self.conversation_manager.reset_conversation(channel_id, DEFAULT_SETTING)
-            
-            await safe_send_message(channel, "✅ プロンプトをデフォルト設定に戻し、会話をリセットしました。")
-            logger.info(f"Channel {channel_id}: Prompt reset to default")
-        
-        else:
-            await safe_send_message(channel, """❌ 不明なサブコマンドです。
-
-**利用可能なコマンド:**
-📝 `/setting edit` - プロンプトを編集
-👁️ `/setting show` - 現在のプロンプトを全文表示
-🔄 `/setting reset` - デフォルト設定に戻す
-💾 `/setting save [プロンプト]` - 新しいプロンプトを保存""")
 
     def run(self):
         """ボットを実行"""
