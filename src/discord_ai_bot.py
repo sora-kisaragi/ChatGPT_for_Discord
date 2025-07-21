@@ -1,5 +1,5 @@
 """
-改良版 Discord ChatGPT/Ollama Bot
+Discord AI Bot
 OpenAI API と Ollama API の両方に対応した Discord ボット
 """
 import os

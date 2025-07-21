@@ -54,7 +54,7 @@ LOG_LEVEL=INFO
 
 ### 実行方法
 ```bash
-python src/ChatGPT_Discord.py
+python src/discord_ai_bot.py
 ```
 
 または

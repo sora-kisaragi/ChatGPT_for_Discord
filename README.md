@@ -91,7 +91,7 @@ scripts/start.sh
 ### 手動実行
 
 ```bash
-python src/ChatGPT_Discord.py
+python src/discord_ai_bot.py
 ```
 
 ## 使用方法
@@ -119,7 +119,7 @@ python src/ChatGPT_Discord.py
 ```
 ChatGPT_for_Discord/
 ├── src/                       # ソースコード
-│   ├── ChatGPT_Discord.py     # メインボットファイル
+│   ├── discord_ai_bot.py      # メインボットファイル
 │   ├── ai_client.py           # AI API クライアント
 │   ├── config.py              # 設定管理
 │   ├── conversation_manager.py # 会話履歴管理

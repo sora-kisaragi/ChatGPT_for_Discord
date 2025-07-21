@@ -42,4 +42,4 @@ fi
 
 # ボットを起動
 echo "ボットを起動しています..."
-python src/ChatGPT_Discord.py
+python src/discord_ai_bot.py
