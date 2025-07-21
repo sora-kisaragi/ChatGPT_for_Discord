@@ -1,149 +1,152 @@
 # Discord ChatGPT/Ollama Bot
 
-OpenAI ChatGPT API ã¨ Ollama API ã®ä¸¡æ–¹ã«å¯¾å¿œã—ãŸ Discord Bot ã§ã™ã€‚
+OpenAI ChatGPT API ‚Æ Ollama API ‚Ì—¼•û‚É‘Î‰ž‚µ‚½ Discord Bot ‚Å‚·B
 
-## ç‰¹å¾´
+## “Á’¥
 
-- **è¤‡æ•°AIå¯¾å¿œ**: OpenAI ChatGPT ã¨ Ollama ã®ä¸¡æ–¹ã‚’ã‚µãƒãƒ¼ãƒˆ
-- **ãƒãƒ£ãƒ³ãƒãƒ«åˆ¥ä¼šè©±ç®¡ç†**: ãƒãƒ£ãƒ³ãƒãƒ«ã”ã¨ã«ç‹¬ç«‹ã—ãŸä¼šè©±å±¥æ­´
-- **è¨­å®šå¯èƒ½ãªãƒ—ãƒ­ãƒ³ãƒ—ãƒˆ**: ãƒãƒ£ãƒ³ãƒãƒ«ã”ã¨ã«AIã®è¨­å®šã‚’ã‚«ã‚¹ã‚¿ãƒžã‚¤ã‚º
-- **ç’°å¢ƒå¤‰æ•°ã«ã‚ˆã‚‹è¨­å®š**: å®‰å…¨ã§ç°¡å˜ãªè¨­å®šç®¡ç†
-- **ã‚¨ãƒ©ãƒ¼ãƒãƒ³ãƒ‰ãƒªãƒ³ã‚°**: å …ç‰¢ãªã‚¨ãƒ©ãƒ¼å‡¦ç†ã¨ãƒ­ã‚°æ©Ÿèƒ½
-- **ã‚³ãƒžãƒ³ãƒ‰ã‚µãƒãƒ¼ãƒˆ**: è±Šå¯Œãªãƒœãƒƒãƒˆã‚³ãƒžãƒ³ãƒ‰
+- **•¡”AI‘Î‰ž**: OpenAI ChatGPT ‚Æ Ollama ‚Ì—¼•û‚ðƒTƒ|[ƒg
+- **ƒ`ƒƒƒ“ƒlƒ‹•Ê‰ï˜bŠÇ—**: ƒ`ƒƒƒ“ƒlƒ‹‚²‚Æ‚É“Æ—§‚µ‚½‰ï˜b—š—ð
+- **Ý’è‰Â”\‚Èƒvƒƒ“ƒvƒg**: ƒ`ƒƒƒ“ƒlƒ‹‚²‚Æ‚ÉAI‚ÌÝ’è‚ðƒJƒXƒ^ƒ}ƒCƒY
+- **ŠÂ‹«•Ï”‚É‚æ‚éÝ’è**: ˆÀ‘S‚ÅŠÈ’P‚ÈÝ’èŠÇ—
+- **ƒGƒ‰[ƒnƒ“ƒhƒŠƒ“ƒO**: Œ˜˜S‚ÈƒGƒ‰[ˆ—‚ÆƒƒO‹@”\
+- **ƒRƒ}ƒ“ƒhƒTƒ|[ƒg**: –L•x‚Èƒ{ƒbƒgƒRƒ}ƒ“ƒh
 
-## å¿…è¦æ¡ä»¶
+## •K—vðŒ
 
-- Python 3.8ä»¥ä¸Š
+- Python 3.8ˆÈã
 - Discord Bot Token
-- OpenAI API Key (OpenAIä½¿ç”¨æ™‚) ã¾ãŸã¯ Ollama ã‚µãƒ¼ãƒãƒ¼ (Ollamaä½¿ç”¨æ™‚)
+- OpenAI API Key (OpenAIŽg—pŽž) ‚Ü‚½‚Í Ollama ƒT[ƒo[ (OllamaŽg—pŽž)
 
-## ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«
+## ƒCƒ“ƒXƒg[ƒ‹
 
-1. ãƒªãƒã‚¸ãƒˆãƒªã‚’ã‚¯ãƒ­ãƒ¼ãƒ³
+1. ƒŠƒ|ƒWƒgƒŠ‚ðƒNƒ[ƒ“
 ```bash
 git clone <repository-url>
 cd ChatGPT_for_Discord
 ```
 
-2. ä¾å­˜é–¢ä¿‚ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«
+2. ˆË‘¶ŠÖŒW‚ðƒCƒ“ƒXƒg[ƒ‹
 ```bash
 pip install -r requirements.txt
 ```
 
-3. ç’°å¢ƒè¨­å®š
+3. ŠÂ‹«Ý’è
 ```bash
 cp .env.example .env
-# .env ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ç·¨é›†ã—ã¦è¨­å®šã‚’è¨˜å…¥
+# .env ƒtƒ@ƒCƒ‹‚ð•ÒW‚µ‚ÄÝ’è‚ð‹L“ü
 ```
 
-## è¨­å®š
+## Ý’è
 
-### ç’°å¢ƒå¤‰æ•°è¨­å®š (.env ãƒ•ã‚¡ã‚¤ãƒ«)
+### ŠÂ‹«•Ï”Ý’è (.env ƒtƒ@ƒCƒ‹)
 
 ```env
-# Discordè¨­å®š
+# DiscordÝ’è
 DISCORD_TOKEN=your_discord_bot_token_here
 DISCORD_CHANNEL_IDS=123456789012345678,987654321098765432
 
-# AI ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼è¨­å®š
-AI_PROVIDER=ollama  # "openai" ã¾ãŸã¯ "ollama"
+# AI ƒvƒƒoƒCƒ_[Ý’è
+AI_PROVIDER=ollama  # "openai" ‚Ü‚½‚Í "ollama"
 
-# OpenAIè¨­å®š (AI_PROVIDER=openai ã®å ´åˆ)
+# OpenAIÝ’è (AI_PROVIDER=openai ‚Ìê‡)
 OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-3.5-turbo
 
-# Ollamaè¨­å®š (AI_PROVIDER=ollama ã®å ´åˆ)
+# OllamaÝ’è (AI_PROVIDER=ollama ‚Ìê‡)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1
 
-# å…±é€šAIè¨­å®š
+# ‹¤’ÊAIÝ’è
 MAX_HISTORY=10
 TEMPERATURE=0.7
 ```
 
-### Ollama ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—
+### Ollama ƒZƒbƒgƒAƒbƒv
 
-1. [Ollama](https://ollama.ai/) ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«
-2. ãƒ¢ãƒ‡ãƒ«ã‚’ãƒ€ã‚¦ãƒ³ãƒ­ãƒ¼ãƒ‰:
+1. [Ollama](https://ollama.ai/) ‚ðƒCƒ“ƒXƒg[ƒ‹
+2. ƒ‚ƒfƒ‹‚ðƒ_ƒEƒ“ƒ[ƒh:
 ```bash
 ollama pull llama3.1
 ```
-3. ã‚µãƒ¼ãƒãƒ¼ã‚’èµ·å‹•:
+3. ƒT[ƒo[‚ð‹N“®:
 ```bash
 ollama serve
 ```
 
-## å®Ÿè¡Œ
+## ŽÀs
 
 ```bash
 python src/ChatGPT_Discord.py
 ```
 
-## ä½¿ç”¨æ–¹æ³•
+## Žg—p•û–@
 
-### åŸºæœ¬ã‚³ãƒžãƒ³ãƒ‰
+### Šî–{ƒRƒ}ƒ“ƒh
 
-- `/gpt [ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸]` ã¾ãŸã¯ `/ai [ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸]` - AIã¨å¯¾è©±
-- `/reset` - ä¼šè©±å±¥æ­´ã‚’ãƒªã‚»ãƒƒãƒˆã—ã€è¨­å®šã‚’å¤‰æ›´
-- `/show` - ç¾åœ¨ã®è¨­å®šã‚’è¡¨ç¤º
-- `/stats` - ä¼šè©±çµ±è¨ˆã‚’è¡¨ç¤º
-- `/help` - ãƒ˜ãƒ«ãƒ—ã‚’è¡¨ç¤º
+- `/gpt [ƒƒbƒZ[ƒW]` ‚Ü‚½‚Í `/ai [ƒƒbƒZ[ƒW]` - AI‚Æ‘Î˜b
+- `/reset` - ‰ï˜b—š—ð‚ðƒŠƒZƒbƒg‚µAÝ’è‚ð•ÏX
+- `/show` - Œ»Ý‚ÌÝ’è‚ð•\Ž¦
+- `/stats` - ‰ï˜b“Œv‚ð•\Ž¦
+- `/help` - ƒwƒ‹ƒv‚ð•\Ž¦
 
-### ä½¿ç”¨ä¾‹
+### Žg—p—á
 
 ```
-/ai ã“ã‚“ã«ã¡ã¯
-/gpt ä»Šæ—¥ã®å¤©æ°—ã¯ã©ã†ã§ã™ã‹ï¼Ÿ
+/ai ‚±‚ñ‚É‚¿‚Í
+/gpt ¡“ú‚Ì“V‹C‚Í‚Ç‚¤‚Å‚·‚©H
 /reset
 /show
 /stats
 ```
 
-## ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ãƒˆæ§‹é€ 
+## ƒvƒƒWƒFƒNƒg\‘¢
 
 ```
 ChatGPT_for_Discord/
-â”œâ”€â”€ src/
-â”‚   â””â”€â”€ ChatGPT_Discord.py     # ãƒ¡ã‚¤ãƒ³ãƒœãƒƒãƒˆãƒ•ã‚¡ã‚¤ãƒ«
-â”œâ”€â”€ config.py                  # è¨­å®šç®¡ç†
-â”œâ”€â”€ ai_client.py              # AI API ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ
-â”œâ”€â”€ conversation_manager.py   # ä¼šè©±å±¥æ­´ç®¡ç†
-â”œâ”€â”€ utils.py                  # ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£é–¢æ•°
-â”œâ”€â”€ requirements.txt          # ä¾å­˜é–¢ä¿‚
-â”œâ”€â”€ .env.example             # ç’°å¢ƒå¤‰æ•°ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆ
-â””â”€â”€ README.md                # ã“ã®ãƒ•ã‚¡ã‚¤ãƒ«
+„¥„Ÿ„Ÿ src/
+„    „¥„Ÿ„Ÿ ChatGPT_Discord.py     # ƒƒCƒ“ƒ{ƒbƒgƒtƒ@ƒCƒ‹
+„    „¥„Ÿ„Ÿ ai_client.py           # AI API ƒNƒ‰ƒCƒAƒ“ƒg
+„    „¥„Ÿ„Ÿ config.py              # Ý’èŠÇ—
+„    „¥„Ÿ„Ÿ conversation_manager.py # ‰ï˜b—š—ðŠÇ—
+„    „¥„Ÿ„Ÿ check_channels.py      # ƒ`ƒƒƒ“ƒlƒ‹Šm”F‹@”\
+„    „¤„Ÿ„Ÿ utils.py               # ƒ†[ƒeƒBƒŠƒeƒBŠÖ”
+„¥„Ÿ„Ÿ requirements.txt           # ˆË‘¶ŠÖŒW
+„¥„Ÿ„Ÿ .env.example              # ŠÂ‹«•Ï”ƒeƒ“ƒvƒŒ[ƒg
+„¥„Ÿ„Ÿ start.bat                 # Windows‹N“®ƒXƒNƒŠƒvƒg
+„¥„Ÿ„Ÿ start.sh                  # Linux/Mac‹N“®ƒXƒNƒŠƒvƒg
+„¤„Ÿ„Ÿ README.md                 # ‚±‚Ìƒtƒ@ƒCƒ‹
 ```
 
-## ä¸»ãªæ”¹å–„ç‚¹
+## Žå‚È‰ü‘P“_
 
-1. **ã‚¢ãƒ¼ã‚­ãƒ†ã‚¯ãƒãƒ£ã®æ”¹å–„**
-   - ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«åŒ–ã¨ã‚¯ãƒ©ã‚¹ãƒ™ãƒ¼ã‚¹è¨­è¨ˆ
-   - é–¢å¿ƒã®åˆ†é›¢
-   - å†åˆ©ç”¨å¯èƒ½ãªã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆ
+1. **ƒA[ƒLƒeƒNƒ`ƒƒ‚Ì‰ü‘P**
+   - ƒ‚ƒWƒ…[ƒ‹‰»‚ÆƒNƒ‰ƒXƒx[ƒXÝŒv
+   - ŠÖS‚Ì•ª—£
+   - Ä—˜—p‰Â”\‚ÈƒRƒ“ƒ|[ƒlƒ“ƒg
 
-2. **AI API å¯¾å¿œ**
-   - OpenAI ã¨ Ollama ã®çµ±ä¸€ã‚¤ãƒ³ã‚¿ãƒ¼ãƒ•ã‚§ãƒ¼ã‚¹
-   - è¨­å®šã«ã‚ˆã‚‹å‹•çš„åˆ‡ã‚Šæ›¿ãˆ
-   - éžåŒæœŸå‡¦ç†å¯¾å¿œ
+2. **AI API ‘Î‰ž**
+   - OpenAI ‚Æ Ollama ‚Ì“ˆêƒCƒ“ƒ^[ƒtƒF[ƒX
+   - Ý’è‚É‚æ‚é“®“IØ‚è‘Ö‚¦
+   - ”ñ“¯Šúˆ—‘Î‰ž
 
-3. **ã‚»ã‚­ãƒ¥ãƒªãƒ†ã‚£å¼·åŒ–**
-   - ç’°å¢ƒå¤‰æ•°ã«ã‚ˆã‚‹è¨­å®šç®¡ç†
-   - API ã‚­ãƒ¼ã®å®‰å…¨ãªä¿å­˜
+3. **ƒZƒLƒ…ƒŠƒeƒB‹­‰»**
+   - ŠÂ‹«•Ï”‚É‚æ‚éÝ’èŠÇ—
+   - API ƒL[‚ÌˆÀ‘S‚È•Û‘¶
 
-4. **ã‚¨ãƒ©ãƒ¼ãƒãƒ³ãƒ‰ãƒªãƒ³ã‚°**
-   - åŒ…æ‹¬çš„ãªã‚¨ãƒ©ãƒ¼å‡¦ç†
-   - ãƒ­ã‚°æ©Ÿèƒ½
-   - ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ•ãƒ¬ãƒ³ãƒ‰ãƒªãƒ¼ãªã‚¨ãƒ©ãƒ¼ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸
+4. **ƒGƒ‰[ƒnƒ“ƒhƒŠƒ“ƒO**
+   - •ïŠ‡“I‚ÈƒGƒ‰[ˆ—
+   - ƒƒO‹@”\
+   - ƒ†[ƒU[ƒtƒŒƒ“ƒhƒŠ[‚ÈƒGƒ‰[ƒƒbƒZ[ƒW
 
-5. **æ©Ÿèƒ½æ‹¡å¼µ**
-   - ãƒãƒ£ãƒ³ãƒãƒ«åˆ¥ä¼šè©±ç®¡ç†
-   - çµ±è¨ˆæƒ…å ±è¡¨ç¤º
-   - ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆå‡¦ç†
+5. **‹@”\Šg’£**
+   - ƒ`ƒƒƒ“ƒlƒ‹•Ê‰ï˜bŠÇ—
+   - “Œvî•ñ•\Ž¦
+   - ƒ^ƒCƒ€ƒAƒEƒgˆ—
 
-## ãƒ©ã‚¤ã‚»ãƒ³ã‚¹
+## ƒ‰ƒCƒZƒ“ƒX
 
-ã“ã®ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ãƒˆã¯[MITãƒ©ã‚¤ã‚»ãƒ³ã‚¹](LICENSE.md)ã®ã‚‚ã¨ã§å…¬é–‹ã•ã‚Œã¦ã„ã¾ã™ã€‚
+‚±‚ÌƒvƒƒWƒFƒNƒg‚Í[MITƒ‰ƒCƒZƒ“ƒX](LICENSE.md)‚Ì‚à‚Æ‚ÅŒöŠJ‚³‚ê‚Ä‚¢‚Ü‚·B
 
-## è²¢çŒ®
+## vŒ£
 
-ãƒ—ãƒ«ãƒªã‚¯ã‚¨ã‚¹ãƒˆã‚„ã‚¤ã‚·ãƒ¥ãƒ¼ã®å ±å‘Šã‚’æ­“è¿Žã—ã¾ã™ã€‚
+ƒvƒ‹ƒŠƒNƒGƒXƒg‚âƒCƒVƒ…[‚Ì•ñ‚ðŠ½Œ}‚µ‚Ü‚·B
