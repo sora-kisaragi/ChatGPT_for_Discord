@@ -15,7 +15,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from config import load_config, DEFAULT_SETTING, get_channel_prompt, set_channel_prompt, delete_channel_prompt
+from config import load_config, DEFAULT_SETTING, get_channel_prompt, set_channel_prompt, delete_channel_prompt, get_guild_prompt, set_guild_prompt, delete_guild_prompt, get_user_prompt, set_user_prompt, delete_user_prompt
 from ai_client import create_ai_client, AIClient
 from conversation_manager import ConversationManager
 from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, extract_command_content
@@ -266,6 +266,116 @@ class ChatBot:
         # グループコマンドをツリーに追加
         self.bot.tree.add_command(setting_group)
         
+        # サーバー全体の設定管理コマンド
+        guild_setting_group = discord.app_commands.Group(name="guild_setting", description="サーバー全体のプロンプト設定を管理します")
+        
+        @guild_setting_group.command(name="show", description="サーバー全体の現在のプロンプト設定を表示します")
+        @discord.app_commands.guild_only()
+        async def guild_setting_show(interaction: discord.Interaction):
+            if not interaction.guild:
+                await interaction.response.send_message("❌ このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
+                return
+                
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_guild_setting_show_slash_command(interaction)
+        
+        @guild_setting_group.command(name="save", description="サーバー全体の新しいプロンプトを保存します")
+        @discord.app_commands.guild_only()
+        @discord.app_commands.describe(prompt="新しいプロンプト")
+        async def guild_setting_save(interaction: discord.Interaction, prompt: str):
+            if not interaction.guild:
+                await interaction.response.send_message("❌ このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
+                return
+                
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("❌ このコマンドを使用するには管理者権限が必要です。", ephemeral=True)
+                return
+                
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_guild_setting_save_slash_command(interaction, prompt)
+        
+        @guild_setting_group.command(name="reset", description="サーバー全体のプロンプト設定をデフォルト設定に戻します")
+        @discord.app_commands.guild_only()
+        async def guild_setting_reset(interaction: discord.Interaction):
+            if not interaction.guild:
+                await interaction.response.send_message("❌ このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
+                return
+                
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("❌ このコマンドを使用するには管理者権限が必要です。", ephemeral=True)
+                return
+                
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_guild_setting_reset_slash_command(interaction)
+            
+        @guild_setting_group.command(name="edit", description="サーバー全体のプロンプト設定を対話的に編集します")
+        @discord.app_commands.guild_only()
+        async def guild_setting_edit(interaction: discord.Interaction):
+            if not interaction.guild:
+                await interaction.response.send_message("❌ このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
+                return
+                
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("❌ このコマンドを使用するには管理者権限が必要です。", ephemeral=True)
+                return
+                
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_guild_setting_edit_slash_command(interaction)
+        
+        # サーバー設定コマンドをツリーに追加
+        self.bot.tree.add_command(guild_setting_group)
+        
+        # ユーザー個人の設定管理コマンド
+        user_setting_group = discord.app_commands.Group(name="user_setting", description="あなた専用のプロンプト設定を管理します")
+        
+        @user_setting_group.command(name="show", description="あなた専用の現在のプロンプト設定を表示します")
+        async def user_setting_show(interaction: discord.Interaction):
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_user_setting_show_slash_command(interaction)
+        
+        @user_setting_group.command(name="save", description="あなた専用の新しいプロンプトを保存します")
+        @discord.app_commands.describe(prompt="新しいプロンプト")
+        async def user_setting_save(interaction: discord.Interaction, prompt: str):
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_user_setting_save_slash_command(interaction, prompt)
+        
+        @user_setting_group.command(name="reset", description="あなた専用のプロンプト設定をデフォルト設定に戻します")
+        async def user_setting_reset(interaction: discord.Interaction):
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_user_setting_reset_slash_command(interaction)
+            
+        @user_setting_group.command(name="edit", description="あなた専用のプロンプト設定を対話的に編集します")
+        async def user_setting_edit(interaction: discord.Interaction):
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("❌ このチャンネルではこのコマンドを使用できません。", ephemeral=True)
+                return
+                
+            await self._handle_user_setting_edit_slash_command(interaction)
+        
+        # ユーザー設定コマンドをツリーに追加
+        self.bot.tree.add_command(user_setting_group)
+        
         # 音声関連のコマンド
         @self.bot.tree.command(name="tel", description="ボイスチャンネルでAIと対話します")
         async def tel_command(interaction: discord.Interaction):
@@ -362,8 +472,13 @@ class ChatBot:
         if not self.conversation_manager.get_messages(channel_id):
             current_setting = self.conversation_manager.get_system_setting(channel_id)
             if not current_setting:
-                # チャンネル固有の設定があればそれを使用、なければデフォルト設定
-                channel_prompt = get_channel_prompt(channel_id, self.prompt_config)
+                # ギルドID取得（DMの場合はNone）
+                guild_id = interaction.guild.id if interaction.guild else None
+                # ユーザーID取得
+                user_id = interaction.user.id
+                
+                # 優先順位: ユーザー > チャンネル > サーバー > デフォルト
+                channel_prompt = get_channel_prompt(channel_id, self.prompt_config, guild_id, user_id)
                 self.conversation_manager.set_system_setting(channel_id, channel_prompt)
         
         # ユーザーメッセージを履歴に追加
@@ -409,8 +524,13 @@ class ChatBot:
         """リセットスラッシュコマンドの処理"""
         channel_id = interaction.channel_id
         
-        # チャンネル固有の設定があればそれを使用、なければデフォルト設定
-        new_setting = get_channel_prompt(channel_id, self.prompt_config)
+        # ギルドID取得（DMの場合はNone）
+        guild_id = interaction.guild.id if interaction.guild else None
+        # ユーザーID取得
+        user_id = interaction.user.id
+        
+        # 優先順位: ユーザー > チャンネル > サーバー > デフォルト
+        new_setting = get_channel_prompt(channel_id, self.prompt_config, guild_id, user_id)
         self.conversation_manager.reset_conversation(channel_id, new_setting)
         
         await interaction.response.send_message("✅ 会話履歴をリセットしました。")
@@ -470,10 +590,22 @@ class ChatBot:
 ❓ `/help` - このヘルプを表示
 
 **プロンプト設定コマンド:**
-📝 `/setting edit` - プロンプトを対話的に編集
-👁️ `/setting show` - 現在のプロンプトを表示
-💾 `/setting save [prompt]` - プロンプトを保存
-🔄 `/setting reset` - デフォルト設定に戻す
+📝 `/setting edit` - チャンネルプロンプトを対話的に編集
+👁️ `/setting show` - チャンネルのプロンプトを表示
+💾 `/setting save [prompt]` - チャンネルプロンプトを保存
+🔄 `/setting reset` - チャンネルをデフォルト設定に戻す
+
+**サーバー全体の設定コマンド:** (管理者のみ)
+📝 `/guild_setting edit` - サーバー全体のプロンプトを対話的に編集
+👁️ `/guild_setting show` - サーバー全体のプロンプトを表示
+💾 `/guild_setting save [prompt]` - サーバー全体のプロンプトを保存
+🔄 `/guild_setting reset` - サーバー全体をデフォルト設定に戻す
+
+**ユーザー個人の設定コマンド:**
+📝 `/user_setting edit` - あなた専用のプロンプトを対話的に編集
+👁️ `/user_setting show` - あなた専用のプロンプトを表示
+💾 `/user_setting save [prompt]` - あなた専用のプロンプトを保存
+🔄 `/user_setting reset` - あなた専用の設定をデフォルトに戻す
 
 **音声機能:**
 🎤 `/tel` - ボイスチャンネルでAIと対話
@@ -888,6 +1020,209 @@ AIの応答は上記のテキストメッセージをご確認ください。"""
                 f"❌ デフォルト音声タイプの設定に失敗しました。",
                 ephemeral=True
             )
+    
+    # サーバー全体の設定関連ハンドラー
+    async def _handle_guild_setting_show_slash_command(self, interaction: discord.Interaction):
+        """サーバープロンプト設定表示スラッシュコマンドの処理"""
+        guild_id = interaction.guild.id
+        current_prompt = get_guild_prompt(guild_id, self.prompt_config)
+        is_custom = str(guild_id) in self.prompt_config.guild_settings
+        
+        show_text = f"""📋 **サーバー全体のプロンプト設定 - {interaction.guild.name}**
+
+**タイプ:** {"🔧 カスタム設定" if is_custom else "📋 デフォルト設定"}
+
+**プロンプト内容:**
+```
+{current_prompt}
+```"""
+        
+        # Discordのメッセージ長制限（2000文字）を考慮
+        if len(show_text) > 1900:
+            show_text = show_text[:1900] + "..."
+        
+        await interaction.response.send_message(show_text)
+    
+    async def _handle_guild_setting_save_slash_command(self, interaction: discord.Interaction, prompt: str):
+        """サーバープロンプト保存スラッシュコマンドの処理"""
+        guild_id = interaction.guild.id
+        
+        if not prompt.strip():
+            await interaction.response.send_message("❌ プロンプトが空です。保存できません。", ephemeral=True)
+            return
+        
+        # プロンプトを保存
+        set_guild_prompt(guild_id, prompt, self.prompt_config)
+        
+        # このサーバーの全チャンネル会話をリセット
+        for channel_id in [channel.id for channel in interaction.guild.text_channels]:
+            self.conversation_manager.reset_conversation(channel_id)
+        
+        await interaction.response.send_message(f"✅ サーバー全体のプロンプトを保存しました。新しい会話はこの設定が反映されます。")
+        logger.info(f"Guild {guild_id} ({interaction.guild.name}): Custom prompt saved")
+    
+    async def _handle_guild_setting_reset_slash_command(self, interaction: discord.Interaction):
+        """サーバープロンプトリセットスラッシュコマンドの処理"""
+        guild_id = interaction.guild.id
+        
+        # デフォルト設定に戻す
+        delete_guild_prompt(guild_id, self.prompt_config)
+        
+        # このサーバーの全チャンネル会話をリセット
+        for channel_id in [channel.id for channel in interaction.guild.text_channels]:
+            self.conversation_manager.reset_conversation(channel_id)
+        
+        await interaction.response.send_message(f"✅ サーバー全体のプロンプトをデフォルト設定に戻しました。新しい会話はこの設定が反映されます。")
+        logger.info(f"Guild {guild_id} ({interaction.guild.name}): Prompt reset to default")
+    
+    async def _handle_guild_setting_edit_slash_command(self, interaction: discord.Interaction):
+        """サーバープロンプト編集スラッシュコマンドの処理"""
+        guild_id = interaction.guild.id
+        current_prompt = get_guild_prompt(guild_id, self.prompt_config)
+        
+        edit_text = f"""✏️ **サーバー全体のプロンプト編集モード - {interaction.guild.name}**
+
+**現在のプロンプト:**
+```
+{current_prompt[:500] + '...' if len(current_prompt) > 500 else current_prompt}
+```
+
+新しいプロンプトを入力してください（5分以内）。
+キャンセルする場合は `cancel` を入力してください。"""
+        
+        await interaction.response.send_message(edit_text)
+        
+        def check(m):
+            return m.author == interaction.user and m.channel.id == interaction.channel_id
+        
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=300.0)
+            
+            if response.content.strip().lower() == "cancel":
+                await response.reply("サーバープロンプト編集をキャンセルしました。")
+                return
+            
+            new_prompt = response.content.strip()
+            if not new_prompt:
+                await response.reply("プロンプトが空です。編集をキャンセルしました。")
+                return
+            
+            # プロンプトを保存
+            set_guild_prompt(guild_id, new_prompt, self.prompt_config)
+            
+            # このサーバーの全チャンネル会話をリセット
+            for channel_id in [channel.id for channel in interaction.guild.text_channels]:
+                self.conversation_manager.reset_conversation(channel_id)
+            
+            await response.reply(f"✅ サーバー全体のプロンプトを更新しました。新しい会話はこの設定が反映されます。")
+            logger.info(f"Guild {guild_id} ({interaction.guild.name}): Prompt updated via edit")
+            
+        except asyncio.TimeoutError:
+            await interaction.followup.send("タイムアウトしました。プロンプト編集をキャンセルしました。", ephemeral=True)
+    
+    # ユーザー個人の設定関連ハンドラー
+    async def _handle_user_setting_show_slash_command(self, interaction: discord.Interaction):
+        """ユーザープロンプト設定表示スラッシュコマンドの処理"""
+        user_id = interaction.user.id
+        current_prompt = get_user_prompt(user_id, self.prompt_config)
+        is_custom = str(user_id) in self.prompt_config.user_settings
+        
+        show_text = f"""📋 **あなた専用のプロンプト設定 - {interaction.user.display_name}**
+
+**タイプ:** {"🔧 カスタム設定" if is_custom else "📋 デフォルト設定"}
+
+**プロンプト内容:**
+```
+{current_prompt}
+```"""
+        
+        # Discordのメッセージ長制限（2000文字）を考慮
+        if len(show_text) > 1900:
+            show_text = show_text[:1900] + "..."
+        
+        await interaction.response.send_message(show_text, ephemeral=True)
+    
+    async def _handle_user_setting_save_slash_command(self, interaction: discord.Interaction, prompt: str):
+        """ユーザープロンプト保存スラッシュコマンドの処理"""
+        user_id = interaction.user.id
+        
+        if not prompt.strip():
+            await interaction.response.send_message("❌ プロンプトが空です。保存できません。", ephemeral=True)
+            return
+        
+        # プロンプトを保存
+        set_user_prompt(user_id, prompt, self.prompt_config)
+        
+        # このユーザーが関わる会話をリセット（次回の会話から適用されます）
+        await interaction.response.send_message("✅ あなた専用のプロンプトを保存しました。次回の会話からこの設定が適用されます。", ephemeral=True)
+        logger.info(f"User {user_id} ({interaction.user.name}): Custom prompt saved")
+    
+    async def _handle_user_setting_reset_slash_command(self, interaction: discord.Interaction):
+        """ユーザープロンプトリセットスラッシュコマンドの処理"""
+        user_id = interaction.user.id
+        
+        # デフォルト設定に戻す
+        delete_user_prompt(user_id, self.prompt_config)
+        
+        await interaction.response.send_message("✅ あなた専用のプロンプトをリセットしました。次回の会話からサーバーまたはチャンネル設定が適用されます。", ephemeral=True)
+        logger.info(f"User {user_id} ({interaction.user.name}): Prompt reset to default")
+    
+    async def _handle_user_setting_edit_slash_command(self, interaction: discord.Interaction):
+        """ユーザープロンプト編集スラッシュコマンドの処理"""
+        user_id = interaction.user.id
+        current_prompt = get_user_prompt(user_id, self.prompt_config)
+        
+        edit_text = f"""✏️ **あなた専用のプロンプト編集モード - {interaction.user.display_name}**
+
+**現在のプロンプト:**
+```
+{current_prompt[:500] + '...' if len(current_prompt) > 500 else current_prompt}
+```
+
+新しいプロンプトを入力してください（5分以内）。
+キャンセルする場合は `cancel` を入力してください。"""
+        
+        await interaction.response.send_message(edit_text, ephemeral=True)
+        
+        def check(m):
+            return m.author == interaction.user and m.channel.id == interaction.channel_id
+        
+        try:
+            response = await self.bot.wait_for('message', check=check, timeout=300.0)
+            
+            if response.content.strip().lower() == "cancel":
+                await response.reply("プロンプト編集をキャンセルしました。", delete_after=5)
+                # メッセージを削除（プライベート情報を保護するため）
+                try:
+                    await response.delete()
+                except:
+                    pass
+                return
+            
+            new_prompt = response.content.strip()
+            if not new_prompt:
+                await response.reply("プロンプトが空です。編集をキャンセルしました。", delete_after=5)
+                # メッセージを削除
+                try:
+                    await response.delete()
+                except:
+                    pass
+                return
+            
+            # プロンプトを保存
+            set_user_prompt(user_id, new_prompt, self.prompt_config)
+            
+            reply = await response.reply("✅ あなた専用のプロンプトを更新しました。次回の会話からこの設定が適用されます。", delete_after=10)
+            logger.info(f"User {user_id} ({interaction.user.name}): Prompt updated via edit")
+            
+            # メッセージを削除（プライベート情報を保護するため）
+            try:
+                await response.delete()
+            except:
+                pass
+            
+        except asyncio.TimeoutError:
+            await interaction.followup.send("タイムアウトしました。プロンプト編集をキャンセルしました。", ephemeral=True)
     
     async def _send_login_message(self):
         """登録チャンネルにログインメッセージを送信"""

@@ -41,11 +41,17 @@ class DiscordConfig:
 @dataclass
 class PromptConfig:
     """プロンプト設定クラス"""
-    settings: dict = None
+    settings: dict = None           # チャンネル設定
+    guild_settings: dict = None     # サーバー設定
+    user_settings: dict = None      # ユーザー設定
     
     def __post_init__(self):
         if self.settings is None:
             self.settings = {}
+        if self.guild_settings is None:
+            self.guild_settings = {}
+        if self.user_settings is None:
+            self.user_settings = {}
 
 # 設定プロンプトの管理
 SETTINGS_FILE = "config/prompt_settings.json"
@@ -101,29 +107,98 @@ def load_config() -> tuple[AIConfig, DiscordConfig, PromptConfig]:
 def load_prompt_settings() -> PromptConfig:
     """プロンプト設定を読み込む"""
     settings_file = Path(SETTINGS_FILE)
+    guild_settings_file = Path("config/guild_prompt_settings.json")
+    user_settings_file = Path("config/user_prompt_settings.json")
     
+    prompt_config = PromptConfig()
+    
+    # チャンネル設定の読み込み
     if settings_file.exists():
         try:
             with open(settings_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return PromptConfig(settings=data)
+                prompt_config.settings = data
+                logger.info(f"チャンネルプロンプト設定を読み込みました: {len(data)}件")
         except Exception as e:
-            logger.error(f"プロンプト設定の読み込みに失敗しました: {e}")
+            logger.error(f"チャンネルプロンプト設定の読み込みに失敗しました: {e}")
     
-    return PromptConfig()
+    # サーバー設定の読み込み
+    if guild_settings_file.exists():
+        try:
+            with open(guild_settings_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                prompt_config.guild_settings = data
+                logger.info(f"サーバープロンプト設定を読み込みました: {len(data)}件")
+        except Exception as e:
+            logger.error(f"サーバープロンプト設定の読み込みに失敗しました: {e}")
+    
+    # ユーザー設定の読み込み
+    if user_settings_file.exists():
+        try:
+            with open(user_settings_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                prompt_config.user_settings = data
+                logger.info(f"ユーザープロンプト設定を読み込みました: {len(data)}件")
+        except Exception as e:
+            logger.error(f"ユーザープロンプト設定の読み込みに失敗しました: {e}")
+    
+    return prompt_config
 
 def save_prompt_settings(prompt_config: PromptConfig):
     """プロンプト設定を保存"""
+    # チャンネル設定の保存
     try:
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
             json.dump(prompt_config.settings, f, ensure_ascii=False, indent=2)
-        logger.info("プロンプト設定を保存しました")
+        logger.info("チャンネルプロンプト設定を保存しました")
     except Exception as e:
-        logger.error(f"プロンプト設定の保存に失敗しました: {e}")
+        logger.error(f"チャンネルプロンプト設定の保存に失敗しました: {e}")
+    
+    # サーバー設定の保存
+    try:
+        guild_settings_file = "config/guild_prompt_settings.json"
+        with open(guild_settings_file, 'w', encoding='utf-8') as f:
+            json.dump(prompt_config.guild_settings, f, ensure_ascii=False, indent=2)
+        logger.info("サーバープロンプト設定を保存しました")
+    except Exception as e:
+        logger.error(f"サーバープロンプト設定の保存に失敗しました: {e}")
+    
+    # ユーザー設定の保存
+    try:
+        user_settings_file = "config/user_prompt_settings.json"
+        with open(user_settings_file, 'w', encoding='utf-8') as f:
+            json.dump(prompt_config.user_settings, f, ensure_ascii=False, indent=2)
+        logger.info("ユーザープロンプト設定を保存しました")
+    except Exception as e:
+        logger.error(f"ユーザープロンプト設定の保存に失敗しました: {e}")
 
-def get_channel_prompt(channel_id: int, prompt_config: PromptConfig) -> str:
-    """チャンネル固有のプロンプトを取得"""
-    return prompt_config.settings.get(str(channel_id), DEFAULT_SETTING)
+def get_channel_prompt(channel_id: int, prompt_config: PromptConfig, guild_id: int = None, user_id: int = None) -> str:
+    """
+    プロンプトを取得する（優先順位: ユーザー > チャンネル > サーバー > デフォルト）
+    
+    Args:
+        channel_id (int): チャンネルID
+        prompt_config (PromptConfig): プロンプト設定
+        guild_id (int, optional): サーバー(ギルド)ID
+        user_id (int, optional): ユーザーID
+    
+    Returns:
+        str: 適用すべきプロンプト
+    """
+    # ユーザー固有設定があればそれを最優先
+    if user_id and str(user_id) in prompt_config.user_settings:
+        return prompt_config.user_settings.get(str(user_id))
+    
+    # チャンネル固有設定があればそれを次に優先
+    if str(channel_id) in prompt_config.settings:
+        return prompt_config.settings.get(str(channel_id))
+    
+    # サーバー固有設定があれば次に優先
+    if guild_id and str(guild_id) in prompt_config.guild_settings:
+        return prompt_config.guild_settings.get(str(guild_id))
+    
+    # どれもなければデフォルト設定
+    return DEFAULT_SETTING
 
 def set_channel_prompt(channel_id: int, prompt: str, prompt_config: PromptConfig):
     """チャンネル固有のプロンプトを設定"""
@@ -134,6 +209,36 @@ def delete_channel_prompt(channel_id: int, prompt_config: PromptConfig):
     """チャンネル固有のプロンプトを削除（デフォルトに戻る）"""
     if str(channel_id) in prompt_config.settings:
         del prompt_config.settings[str(channel_id)]
+        save_prompt_settings(prompt_config)
+
+def get_guild_prompt(guild_id: int, prompt_config: PromptConfig) -> str:
+    """サーバー（ギルド）固有のプロンプトを取得"""
+    return prompt_config.guild_settings.get(str(guild_id), DEFAULT_SETTING)
+
+def set_guild_prompt(guild_id: int, prompt: str, prompt_config: PromptConfig):
+    """サーバー（ギルド）固有のプロンプトを設定"""
+    prompt_config.guild_settings[str(guild_id)] = prompt
+    save_prompt_settings(prompt_config)
+
+def delete_guild_prompt(guild_id: int, prompt_config: PromptConfig):
+    """サーバー（ギルド）固有のプロンプトを削除（デフォルトに戻る）"""
+    if str(guild_id) in prompt_config.guild_settings:
+        del prompt_config.guild_settings[str(guild_id)]
+        save_prompt_settings(prompt_config)
+
+def get_user_prompt(user_id: int, prompt_config: PromptConfig) -> str:
+    """ユーザー固有のプロンプトを取得"""
+    return prompt_config.user_settings.get(str(user_id), DEFAULT_SETTING)
+
+def set_user_prompt(user_id: int, prompt: str, prompt_config: PromptConfig):
+    """ユーザー固有のプロンプトを設定"""
+    prompt_config.user_settings[str(user_id)] = prompt
+    save_prompt_settings(prompt_config)
+
+def delete_user_prompt(user_id: int, prompt_config: PromptConfig):
+    """ユーザー固有のプロンプトを削除（デフォルトに戻る）"""
+    if str(user_id) in prompt_config.user_settings:
+        del prompt_config.user_settings[str(user_id)]
         save_prompt_settings(prompt_config)
 
 # デフォルト設定プロンプト
