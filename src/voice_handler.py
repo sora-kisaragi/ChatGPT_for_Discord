@@ -373,14 +373,14 @@ class VoiceHandler:
             gpt_weights_path = weights_settings[voice_preset]["gpt_weights"]
             gpt_response = requests.get(
                 'http://127.0.0.1:9880/set_gpt_weights',
-                params={'t2s_weights_path': gpt_weights_path}
+                params={'weights_path': gpt_weights_path}
             )
             
             # SoVITS重みの設定更新
             sovits_weights_path = weights_settings[voice_preset]["sovits_weights"]
             sovits_response = requests.get(
                 'http://127.0.0.1:9880/set_sovits_weights',
-                params={'vits_weights_path': sovits_weights_path}
+                params={'weights_path': sovits_weights_path}
             )
             
             # レスポンスの確認
