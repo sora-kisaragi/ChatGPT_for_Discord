@@ -501,32 +501,31 @@ class ChatBot:
         if not interaction.user.voice:
             await interaction.response.send_message("ボイスチャンネルに接続してから実行してください。", ephemeral=True)
             return
-        
+
         voice_channel = interaction.user.voice.channel
-        
+
         # 応答を遅延させる（処理時間が長い場合）
         await interaction.response.defer()
-        
+
         # ボイスチャンネルに接続
         success = await self.voice_handler.join_voice_channel(voice_channel)
         if not success:
             await interaction.followup.send("ボイスチャンネルへの接続に失敗しました。")
             return
-        
+
         await interaction.followup.send(
             f"{voice_channel.name}に接続して音声対話を開始します。\n"
-            "音声認識後にAIが応答します。(この機能はまだ開発中です)"
+            "5秒間録音します。録音後、ファイルパスをログに出力します。"
         )
-        
+
         logger.info(f"ボイス対話コマンド実行: {interaction.user.name}, チャンネル: {voice_channel.name}")
-        
-        # TODO: 以下の機能を順次実装予定
-        # 1. ボイスチャンネル接続（実装済み）
-        # 2. 音声データ取得
-        # 3. Whisperによる音声認識
-        # 4. LLMによるテキスト生成
-        # 5. GPT-SoVITSによる音声合成
-        # 6. 音声再生
+
+        # 5秒間録音し、ファイルパスをログ出力
+        audio_path = await self.voice_handler.record_audio(voice_channel.guild.id, duration=5.0, user_id=interaction.user.id)
+        if audio_path:
+            logger.info(f"録音ファイル: {audio_path}")
+        else:
+            logger.warning("録音に失敗しました")
     
     async def _handle_voice_slash_command(self, interaction: discord.Interaction, text: str):
         """テキストを音声に変換して送信するコマンドの処理"""

@@ -70,13 +70,60 @@ class VoiceHandler:
             logger.error(f"音声再生エラー: {e}", exc_info=True)
             return False
     
-    async def record_audio(self, guild_id, duration=5.0):
-        """音声を録音（将来実装）"""
-        # TODO: Discord音声の録音機能を実装
-        # 現在のDiscord.pyでは直接的な録音APIが提供されていないため、
-        # 別の方法で実装する必要があります
-        logger.warning("音声録音機能は現在実装されていません")
-        return None
+    async def record_audio(self, guild_id, duration=5.0, user_id=None, silence_timeout=2.0, min_bytes=1000):
+        """
+        ボイスチャンネルの音声を録音し、一時ファイルに保存してパスを返す（RawDataSink使用）
+        - duration: 最大録音秒数
+        - silence_timeout: 無音とみなす秒数
+        - min_bytes: 無音判定の最小バイト数
+        """
+        if guild_id not in self.voice_clients:
+            logger.error(f"ボイスクライアントが見つかりません: Guild ID {guild_id}")
+            return None
+        voice_client = self.voice_clients[guild_id]
+        try:
+            import discord.sinks
+        except ImportError:
+            logger.error("discord.sinksが見つかりません。discord.py[voice]>=2.5.0が必要です。")
+            return None
+
+        sink = discord.sinks.RawDataSink()
+        audio_file_path = self.temp_dir / f"recorded_{guild_id}.pcm"
+        audio_data = bytearray()
+        last_data_time = asyncio.get_event_loop().time()
+
+        def on_data(sink, user, data):
+            nonlocal last_data_time
+            # user_id指定時はそのユーザーのみ録音
+            if user_id is not None and user.id != user_id:
+                return
+            if len(data) >= min_bytes:
+                last_data_time = asyncio.get_event_loop().time()
+            audio_data.extend(data)
+
+        sink.on('data', on_data)
+
+        voice_client.start_recording(sink, finished_callback=None)
+        logger.info(f"録音開始: Guild ID {guild_id}, 最大{duration}s, 無音{silence_timeout}sで終了")
+
+        start_time = asyncio.get_event_loop().time()
+        while True:
+            await asyncio.sleep(0.1)
+            now = asyncio.get_event_loop().time()
+            if now - start_time > duration:
+                logger.info("最大録音時間に到達したため録音終了")
+                break
+            if now - last_data_time > silence_timeout and len(audio_data) > 0:
+                logger.info(f"無音({silence_timeout}s)検出で録音終了")
+                break
+
+        await voice_client.stop_recording()
+        logger.info(f"録音終了: Guild ID {guild_id}")
+
+        with open(audio_file_path, 'wb') as f:
+            f.write(audio_data)
+        logger.info(f"録音データを保存: {audio_file_path}")
+        return str(audio_file_path)
     
     async def transcribe_audio(self, audio_file):
         """Whisperを使って音声をテキストに変換（将来実装）"""
