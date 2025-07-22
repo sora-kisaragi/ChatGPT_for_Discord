@@ -34,6 +34,9 @@ class ChatBot:
         # 設定読み込み
         self.ai_config, self.discord_config, self.prompt_config = load_config()
         
+        # DMチャンネルの許可設定
+        self.allow_dm = True
+        
         # コンポーネント初期化
         self.ai_client: AIClient = create_ai_client(
             self.ai_config.provider,
@@ -74,6 +77,26 @@ class ChatBot:
             logger.info(f"  - /{cmd.name}: {cmd.description}")
         
         logger.info(f"Bot initialized with AI provider: {self.ai_config.provider}")
+    
+    def _check_channel_permission(self, interaction: discord.Interaction) -> bool:
+        """
+        チャンネル権限を確認するヘルパーメソッド
+        
+        Args:
+            interaction (discord.Interaction): インタラクション
+        
+        Returns:
+            bool: チャンネルで許可されているかどうか
+        """
+        # DMチャンネルかどうか確認
+        is_dm = interaction.guild is None
+        
+        # DMチャンネル許可設定に基づいて確認
+        return validate_channel_access(
+            interaction.channel_id,
+            self.discord_config.channel_ids,
+            is_dm=(is_dm and self.allow_dm)
+        )
     
     def _setup_events(self):
         """イベントハンドラーを設定"""
@@ -131,8 +154,9 @@ class ChatBot:
             if message.author.bot:
                 return
             
-            # チャンネル権限確認
-            if not validate_channel_access(message.channel.id, self.discord_config.channel_ids):
+            # チャンネル権限確認（DMは常に許可）
+            is_dm = message.guild is None
+            if not validate_channel_access(message.channel.id, self.discord_config.channel_ids, is_dm=(is_dm and self.allow_dm)):
                 return
             
             # コマンド処理を行う
@@ -145,7 +169,7 @@ class ChatBot:
         async def gpt_command(interaction: discord.Interaction, prompt: str):
             """AIと対話するスラッシュコマンド"""
             # チャンネル権限確認
-            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+            if not self._check_channel_permission(interaction):
                 await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
                 return
             
@@ -155,7 +179,7 @@ class ChatBot:
         async def ai_command(interaction: discord.Interaction, prompt: str):
             """AIと対話するスラッシュコマンド（エイリアス）"""
             # チャンネル権限確認
-            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+            if not self._check_channel_permission(interaction):
                 await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
                 return
             
@@ -253,15 +277,79 @@ class ChatBot:
             
             await self._handle_tel_slash_command(interaction)
         
-        @self.bot.tree.command(name="voice", description="入力したテキストを音声に変換して送信します")
-        async def voice_command(interaction: discord.Interaction, text: str):
-            """テキストを音声に変換して送信するコマンド"""
+        # 音声設定用のグループコマンド
+        voice_setting_group = discord.app_commands.Group(name="voice_setting", description="音声設定を管理します")
+        
+        @voice_setting_group.command(name="list", description="利用可能な音声タイプの一覧を表示します")
+        async def voice_setting_list_command(interaction: discord.Interaction):
+            """音声タイプ一覧表示のスラッシュコマンド"""
             # チャンネル権限確認
             if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
                 await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
                 return
             
-            await self._handle_voice_slash_command(interaction, text)
+            await self._handle_voice_setting_list_slash_command(interaction)
+        
+        @voice_setting_group.command(name="user_default", description="ユーザーのデフォルト音声タイプを設定します")
+        @discord.app_commands.describe(voice_type="音声タイプ")
+        async def voice_setting_user_default_command(interaction: discord.Interaction, voice_type: str):
+            """ユーザーのデフォルト音声タイプ設定のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_voice_setting_user_default_slash_command(interaction, voice_type)
+        
+        @voice_setting_group.command(name="channel_default", description="チャンネルのデフォルト音声タイプを設定します")
+        @discord.app_commands.describe(voice_type="音声タイプ")
+        async def voice_setting_channel_default_command(interaction: discord.Interaction, voice_type: str):
+            """チャンネルのデフォルト音声タイプ設定のスラッシュコマンド"""
+            # チャンネル権限確認
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_voice_setting_channel_default_slash_command(interaction, voice_type)
+        
+        # グループコマンドをツリーに追加
+        self.bot.tree.add_command(voice_setting_group)
+        
+        @self.bot.tree.command(name="tts", description="入力したテキストをそのまま音声に変換して送信します")
+        @discord.app_commands.describe(
+            text="音声に変換するテキスト",
+            voice_type="音声タイプ (未指定の場合はユーザーまたはチャンネルのデフォルト設定を使用)"
+        )
+        async def tts_command(
+            interaction: discord.Interaction, 
+            text: str, 
+            voice_type: str = None
+        ):
+            """入力テキストをそのまま音声に変換して送信するコマンド"""
+            # チャンネル権限確認
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_tts_slash_command(interaction, text, voice_type)
+        
+        @self.bot.tree.command(name="voice", description="入力に対するAIの返答を生成し、その返答を音声で送信します")
+        @discord.app_commands.describe(
+            text="AIへの質問や指示",
+            voice_type="音声タイプ (未指定の場合はユーザーまたはチャンネルのデフォルト設定を使用)"
+        )
+        async def voice_command(
+            interaction: discord.Interaction, 
+            text: str, 
+            voice_type: str = None
+        ):
+            """AIの返答を音声に変換して送信するコマンド"""
+            # チャンネル権限確認
+            if not self._check_channel_permission(interaction):
+                await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
+                return
+            
+            await self._handle_voice_slash_command(interaction, text, voice_type)
     
     async def _handle_ai_slash_command(self, interaction: discord.Interaction, prompt: str):
         """AI対話スラッシュコマンドの処理"""
@@ -389,7 +477,11 @@ class ChatBot:
 
 **音声機能:**
 🎤 `/tel` - ボイスチャンネルでAIと対話
-🔊 `/voice [text]` - テキストを音声に変換して送信
+🔊 `/tts [text]` - 入力したテキストをそのまま音声に変換して送信
+🤖 `/voice [text]` - 入力に対するAI返答を生成し、音声で送信
+🔧 `/voice_setting list` - 利用可能な音声タイプを表示
+👤 `/voice_setting user_default [type]` - あなたのデフォルト音声タイプを設定
+📢 `/voice_setting channel_default [type]` - チャンネルのデフォルト音声タイプを設定
 
 **現在の設定:**
 🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
@@ -527,33 +619,214 @@ class ChatBot:
         else:
             logger.warning("録音に失敗しました")
     
-    async def _handle_voice_slash_command(self, interaction: discord.Interaction, text: str):
-        """テキストを音声に変換して送信するコマンドの処理"""
+    async def _handle_tts_slash_command(self, interaction: discord.Interaction, text: str, voice_type: str = None):
+        """入力テキストをそのまま音声に変換して送信するコマンドの処理"""
         await interaction.response.defer()
         
-        logger.info(f"音声生成コマンド実行: {interaction.user.name}, テキスト: {text}")
+        logger.info(f"TTS実行: {interaction.user.name}, テキスト: {text}, 音声タイプ: {voice_type}")
         
         try:
-            # TODO: GPT-SoVITSによる音声合成を実装予定
-            # 音声合成は今後実装
-            synthesized_audio = await self.voice_handler.synthesize_speech(text)
+            # TTSエンドポイントを使用して音声合成
+            synthesized_audio = await self.voice_handler.synthesize_speech(
+                text=text,
+                media_type='wav',
+                voice_preset=voice_type,
+                user_id=interaction.user.id,
+                channel_id=interaction.channel_id
+            )
             
             if synthesized_audio:
                 # 音声ファイルが生成できた場合、添付ファイルとして送信
                 await interaction.followup.send(
-                    f"生成された音声ファイルです:", 
-                    file=discord.File(synthesized_audio, filename="generated_voice.mp3")
+                    f"生成された音声ファイルです：\n「{text}」", 
+                    file=discord.File(synthesized_audio, filename=f"tts_{interaction.user.id}.wav")
                 )
+                
+                # ユーザーがボイスチャンネルに接続している場合は、そこでも再生
+                if interaction.user.voice:
+                    voice_channel = interaction.user.voice.channel
+                    # ボイスチャンネルに接続
+                    success = await self.voice_handler.join_voice_channel(voice_channel)
+                    if success:
+                        # 音声を再生
+                        await self.voice_handler.play_audio(voice_channel.guild.id, synthesized_audio)
             else:
-                # 現段階ではテキストのみ返信
                 await interaction.followup.send(
-                    f"音声生成リクエスト受付（この機能はまだ開発中です）\n"
-                    f"入力テキスト: {text}\n"
-                    f"今後、このテキストを元に音声ファイルが生成されます。"
+                    f"音声生成に失敗しました。TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。\n"
+                    f"入力テキスト: {text}"
                 )
         except Exception as e:
-            logger.error(f"音声生成エラー: {e}", exc_info=True)
+            logger.error(f"TTS実行エラー: {e}", exc_info=True)
             await interaction.followup.send(f"音声生成中にエラーが発生しました: {e}")
+    
+    async def _handle_voice_slash_command(self, interaction: discord.Interaction, text: str, voice_type: str = None):
+        """AIの返答を音声に変換して送信するコマンドの処理"""
+        await interaction.response.defer()
+        
+        logger.info(f"AI音声生成コマンド実行: {interaction.user.name}, テキスト: {text}, 音声タイプ: {voice_type}")
+        
+        try:
+            # チャンネルIDを取得
+            channel_id = interaction.channel_id
+            
+            # 初回の場合はシステム設定を追加
+            if not self.conversation_manager.get_messages(channel_id):
+                current_setting = self.conversation_manager.get_system_setting(channel_id)
+                if not current_setting:
+                    # チャンネル固有の設定があればそれを使用、なければデフォルト設定
+                    channel_prompt = get_channel_prompt(channel_id, self.prompt_config)
+                    self.conversation_manager.set_system_setting(channel_id, channel_prompt)
+            
+            # ユーザーメッセージを履歴に追加
+            self.conversation_manager.add_message(channel_id, "user", text)
+            
+            # AI応答生成
+            messages = self.conversation_manager.get_messages(channel_id)
+            ai_response = await self.ai_client.generate_response(messages)
+            
+            # 応答を履歴に追加
+            self.conversation_manager.add_message(channel_id, "assistant", ai_response)
+            
+            # 応答を整形
+            formatted_response = format_response_text(ai_response)
+            
+            # メッセージでAI応答を送信
+            await interaction.followup.send(f"🤖 AIの回答: \n{formatted_response}")
+            
+            # 音声合成で応答を読み上げる
+            synthesized_audio = await self.voice_handler.synthesize_speech(
+                text=ai_response,
+                media_type='wav',
+                voice_preset=voice_type,
+                user_id=interaction.user.id,
+                channel_id=interaction.channel_id
+            )
+            
+            if synthesized_audio:
+                # 音声ファイルが生成できた場合、添付ファイルとして送信
+                await interaction.followup.send(
+                    f"AIの回答を音声で聞く:", 
+                    file=discord.File(synthesized_audio, filename=f"ai_voice_{interaction.user.id}.wav")
+                )
+                
+                # ユーザーがボイスチャンネルに接続している場合は、そこでも再生
+                if interaction.user.voice:
+                    voice_channel = interaction.user.voice.channel
+                    # ボイスチャンネルに接続
+                    success = await self.voice_handler.join_voice_channel(voice_channel)
+                    if success:
+                        # 音声を再生
+                        await self.voice_handler.play_audio(voice_channel.guild.id, synthesized_audio)
+            else:
+                await interaction.followup.send(
+                    f"AI応答の音声生成に失敗しました。TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。"
+                )
+                
+        except Exception as e:
+            logger.error(f"AI音声生成エラー: {e}", exc_info=True)
+            await interaction.followup.send(f"AI応答または音声生成中にエラーが発生しました: {e}")
+    
+    async def _handle_voice_setting_list_slash_command(self, interaction: discord.Interaction):
+        """音声タイプ一覧表示コマンドの処理"""
+        # 音声プリセット一覧を取得
+        presets = self.voice_handler.settings.get_all_presets()
+        
+        # ユーザーとチャンネルのデフォルト設定を取得
+        user_default = self.voice_handler.settings.get_user_default(interaction.user.id)
+        channel_default = self.voice_handler.settings.get_channel_default(interaction.channel_id)
+        
+        # 一覧を整形して表示
+        preset_list = "\n".join([
+            f"📌 `{preset_id}`: {preset_data.get('name', preset_id)}" +
+            (" 👤" if preset_id == user_default else "") +
+            (" 📢" if preset_id == channel_default else "")
+            for preset_id, preset_data in presets.items()
+        ])
+        
+        message = f"""🔊 **利用可能な音声タイプ一覧**
+
+{preset_list}
+
+**現在の設定:**
+👤 あなたのデフォルト: `{user_default}`（{presets[user_default].get('name', user_default)}）
+📢 このチャンネルのデフォルト: `{channel_default}`（{presets[channel_default].get('name', channel_default)}）
+
+**設定変更コマンド:**
+- `/voice_setting user_default [voice_type]` - あなたのデフォルト設定を変更
+- `/voice_setting channel_default [voice_type]` - このチャンネルのデフォルト設定を変更
+
+**使い方:**
+- `/voice [text]` - デフォルト音声でテキストを読み上げ
+- `/voice [text] voice_type:[type]` - 指定した音声タイプでテキストを読み上げ
+
+👤：ユーザーデフォルト設定
+📢：チャンネルデフォルト設定"""
+        
+        await interaction.response.send_message(message)
+    
+    async def _handle_voice_setting_user_default_slash_command(self, interaction: discord.Interaction, voice_type: str):
+        """ユーザーのデフォルト音声タイプ設定コマンドの処理"""
+        # 存在する音声タイプか確認
+        presets = self.voice_handler.settings.get_all_presets()
+        if voice_type not in presets:
+            preset_list = ", ".join([f"`{p_id}`" for p_id in presets.keys()])
+            await interaction.response.send_message(
+                f"❌ 指定された音声タイプ `{voice_type}` は存在しません。\n"
+                f"利用可能な音声タイプ: {preset_list}\n"
+                f"利用可能な音声タイプの詳細は `/voice_setting list` で確認できます。",
+                ephemeral=True
+            )
+            return
+        
+        # 音声タイプを設定
+        success = self.voice_handler.settings.set_user_default(interaction.user.id, voice_type)
+        if success:
+            preset_name = presets[voice_type].get('name', voice_type)
+            await interaction.response.send_message(
+                f"✅ あなたのデフォルト音声タイプを `{voice_type}` ({preset_name}) に設定しました。\n"
+                f"今後、`/voice` コマンドで音声タイプを指定しない場合はこの設定が使用されます。"
+            )
+        else:
+            await interaction.response.send_message(
+                f"❌ デフォルト音声タイプの設定に失敗しました。",
+                ephemeral=True
+            )
+    
+    async def _handle_voice_setting_channel_default_slash_command(self, interaction: discord.Interaction, voice_type: str):
+        """チャンネルのデフォルト音声タイプ設定コマンドの処理"""
+        # ユーザーが管理者権限を持っているか確認
+        if not interaction.permissions.administrator:
+            await interaction.response.send_message(
+                "❌ このコマンドを実行するには管理者権限が必要です。",
+                ephemeral=True
+            )
+            return
+            
+        # 存在する音声タイプか確認
+        presets = self.voice_handler.settings.get_all_presets()
+        if voice_type not in presets:
+            preset_list = ", ".join([f"`{p_id}`" for p_id in presets.keys()])
+            await interaction.response.send_message(
+                f"❌ 指定された音声タイプ `{voice_type}` は存在しません。\n"
+                f"利用可能な音声タイプ: {preset_list}\n"
+                f"利用可能な音声タイプの詳細は `/voice_setting list` で確認できます。",
+                ephemeral=True
+            )
+            return
+        
+        # 音声タイプを設定
+        success = self.voice_handler.settings.set_channel_default(interaction.channel_id, voice_type)
+        if success:
+            preset_name = presets[voice_type].get('name', voice_type)
+            await interaction.response.send_message(
+                f"✅ このチャンネルのデフォルト音声タイプを `{voice_type}` ({preset_name}) に設定しました。\n"
+                f"今後、このチャンネルで `/voice` コマンドで音声タイプを指定しない場合、かつユーザーのデフォルト設定がない場合はこの設定が使用されます。"
+            )
+        else:
+            await interaction.response.send_message(
+                f"❌ デフォルト音声タイプの設定に失敗しました。",
+                ephemeral=True
+            )
     
     async def _send_login_message(self):
         """登録チャンネルにログインメッセージを送信"""
@@ -577,7 +850,8 @@ class ChatBot:
 👁️ `/show` - 現在の設定を表示
 ❓ `/help` - ヘルプを表示
 🎤 `/tel` - ボイスチャンネルでAIと対話
-🔊 `/voice [text]` - テキストを音声に変換
+🔊 `/tts [text]` - テキストをそのまま音声に変換
+🤖 `/voice [text]` - AI返答を生成し音声で送信
 
 **プロンプト設定コマンド:**
 📝 `/setting edit` - プロンプトを対話的に編集

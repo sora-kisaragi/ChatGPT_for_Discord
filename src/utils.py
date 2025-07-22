@@ -44,10 +44,27 @@ async def safe_send_message(channel, content: str, delay: float = 0.0):
         logging.error(f"Failed to send message: {e}")
         raise
 
-def validate_channel_access(channel_id: int, allowed_channels: list) -> bool:
-    """チャンネルアクセス権限を確認"""
-    if not allowed_channels:  # 空の場合は全チャンネル許可
+def validate_channel_access(channel_id: int, allowed_channels: list, is_dm: bool = False) -> bool:
+    """
+    チャンネルアクセス権限を確認
+    
+    Args:
+        channel_id (int): チャンネルID
+        allowed_channels (list): 許可されたチャンネルIDのリスト
+        is_dm (bool, optional): DMチャンネルかどうか。Trueの場合は常に許可
+    
+    Returns:
+        bool: 許可されているかどうか
+    """
+    # DMチャンネルは常に許可
+    if is_dm:
         return True
+    
+    # 許可リストが空の場合は全チャンネル許可
+    if not allowed_channels:
+        return True
+    
+    # チャンネルIDがリストに含まれているか確認
     return channel_id in allowed_channels
 
 def extract_command_content(message_content: str, command: str) -> str:

@@ -3,10 +3,12 @@ Voice Handler Module
 ボイスチャンネルとの連携を行うモジュール
 """
 import os
+import json
 import logging
 import asyncio
 import tempfile
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 import discord
 from discord import FFmpegPCMAudio
@@ -14,14 +16,131 @@ from discord import FFmpegPCMAudio
 # ロガー設定
 logger = logging.getLogger(__name__)
 
+class VoiceSettings:
+    """ユーザーとチャンネルの音声設定を管理するクラス"""
+    
+    def __init__(self, settings_file: str = None):
+        """
+        初期化
+        
+        Args:
+            settings_file (str, optional): 設定ファイルのパス
+        """
+        self.settings_file = settings_file or os.path.join(tempfile.gettempdir(), "discord_bot_voice_settings.json")
+        # 音声プリセット設定
+        self.voice_presets = {
+            "ultraman_x": {
+                "name": "ウルトラマンX",
+                "ref_audio_path": 'audio/ウルトラマン_X/vocal_Clipchamp_21lfph0q9.mp3.reformatted.wav_10.wav_0000250880_0000393920.wav',
+                "prompt_text": '上木隊長、今アメリカを襲ったのはグリーザです。'
+            }
+            # 他のプリセットを追加可能
+        }
+        
+        # ユーザーID/チャンネルIDごとのデフォルト設定
+        # {"user_123456": "ultraman_x", "channel_789012": "ultraman_x"}
+        self.default_settings = {}
+        
+        # 設定ファイルを読み込む
+        self._load_settings()
+    
+    def _load_settings(self):
+        """設定ファイルから設定を読み込む"""
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if 'presets' in data:
+                        self.voice_presets.update(data['presets'])
+                    if 'defaults' in data:
+                        self.default_settings.update(data['defaults'])
+                logger.info(f"音声設定を読み込みました: {len(self.voice_presets)} プリセット, {len(self.default_settings)} デフォルト設定")
+        except Exception as e:
+            logger.error(f"音声設定の読み込みエラー: {e}", exc_info=True)
+    
+    def _save_settings(self):
+        """設定をファイルに保存"""
+        try:
+            data = {
+                'presets': self.voice_presets,
+                'defaults': self.default_settings
+            }
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info(f"音声設定を保存しました: {self.settings_file}")
+        except Exception as e:
+            logger.error(f"音声設定の保存エラー: {e}", exc_info=True)
+    
+    def get_preset(self, preset_id: str) -> Dict[str, Any]:
+        """
+        プリセット情報を取得
+        
+        Args:
+            preset_id (str): プリセットID
+        
+        Returns:
+            Dict: プリセット情報
+        """
+        return self.voice_presets.get(preset_id, self.voice_presets.get("ultraman_x"))
+    
+    def get_all_presets(self) -> Dict[str, Dict[str, Any]]:
+        """すべてのプリセットを取得"""
+        return self.voice_presets
+    
+    def get_user_default(self, user_id: int) -> str:
+        """ユーザーのデフォルト音声タイプを取得"""
+        return self.default_settings.get(f"user_{user_id}", "ultraman_x")
+    
+    def get_channel_default(self, channel_id: int) -> str:
+        """チャンネルのデフォルト音声タイプを取得"""
+        return self.default_settings.get(f"channel_{channel_id}", "ultraman_x")
+    
+    def set_user_default(self, user_id: int, preset_id: str) -> bool:
+        """
+        ユーザーのデフォルト音声タイプを設定
+        
+        Args:
+            user_id (int): ユーザーID
+            preset_id (str): プリセットID
+        
+        Returns:
+            bool: 成功したかどうか
+        """
+        if preset_id in self.voice_presets:
+            self.default_settings[f"user_{user_id}"] = preset_id
+            self._save_settings()
+            return True
+        return False
+    
+    def set_channel_default(self, channel_id: int, preset_id: str) -> bool:
+        """
+        チャンネルのデフォルト音声タイプを設定
+        
+        Args:
+            channel_id (int): チャンネルID
+            preset_id (str): プリセットID
+        
+        Returns:
+            bool: 成功したかどうか
+        """
+        if preset_id in self.voice_presets:
+            self.default_settings[f"channel_{channel_id}"] = preset_id
+            self._save_settings()
+            return True
+        return False
+
+
 class VoiceHandler:
     """音声処理ハンドラークラス"""
     
-    def __init__(self):
+    def __init__(self, settings_file: str = None):
         """初期化"""
         self.voice_clients = {}  # サーバーIDをキーにしたボイスクライアント管理
         self.temp_dir = Path(tempfile.gettempdir()) / "discord_bot_voice"
         os.makedirs(self.temp_dir, exist_ok=True)
+        
+        # 音声設定管理
+        self.settings = VoiceSettings(settings_file)
     
     async def join_voice_channel(self, voice_channel):
         """ボイスチャンネルに接続"""
@@ -131,11 +250,83 @@ class VoiceHandler:
         logger.warning("音声認識機能は現在実装されていません")
         return "これはテスト用のテキストです。実際の音声認識は未実装です。"
     
-    async def synthesize_speech(self, text, output_file=None):
-        """テキストを音声に変換（将来実装）"""
-        # TODO: GPT-SoVITSで音声合成を実装
-        if output_file is None:
-            output_file = self.temp_dir / f"synth_{hash(text)}.mp3"
+    async def synthesize_speech(self, text, output_file=None, voice_preset=None, 
+                          media_type='wav', user_id=None, channel_id=None):
+        """
+        テキストを音声に変換
         
-        logger.warning(f"音声合成機能は現在実装されていません: {text}")
-        return None  # 実装時には音声ファイルのパスを返す
+        Args:
+            text (str): 変換するテキスト
+            output_file (str, optional): 出力ファイルパス
+            voice_preset (str, optional): 音声プリセット名
+            media_type (str, optional): 出力音声フォーマット ('wav' or 'mp3')
+            user_id (int, optional): ユーザーID（プリセット未指定時に使用）
+            channel_id (int, optional): チャンネルID（プリセット未指定時に使用）
+            
+        Returns:
+            str or None: 生成された音声ファイルのパス、失敗時はNone
+        """
+        try:
+            import requests
+            
+            if output_file is None:
+                output_file = self.temp_dir / f"synth_{hash(text)}_{int(asyncio.get_event_loop().time())}.{media_type}"
+            
+            # 音声プリセットの決定
+            # 1. 指定されたプリセット
+            # 2. ユーザーのデフォルト設定
+            # 3. チャンネルのデフォルト設定
+            # 4. システムデフォルト (ultraman_x)
+            if not voice_preset and user_id:
+                voice_preset = self.settings.get_user_default(user_id)
+            if not voice_preset and channel_id:
+                voice_preset = self.settings.get_channel_default(channel_id)
+            if not voice_preset:
+                voice_preset = "ultraman_x"
+            
+            # プリセットデータを取得
+            preset_data = self.settings.get_preset(voice_preset)
+            
+            # TTSのパラメータを設定
+            params = {
+                'text': text,
+                'text_lang': 'ja',
+                'ref_audio_path': preset_data["ref_audio_path"],
+                'aux_ref_audio_paths': [],
+                'prompt_text': preset_data["prompt_text"],
+                'prompt_lang': 'ja',
+                'top_k': 5,
+                'top_p': 0.8,
+                'temperature': 0.8,
+                'text_split_method': 'cut3',
+                'batch_size': 1,
+                'batch_threshold': 0.75,
+                'split_bucket': True,
+                'speed_factor': 1.2,
+                'fragment_interval': 0.3,
+                'seed': -1,
+                'media_type': media_type,
+                'streaming_mode': 'false',
+                'parallel_infer': True,
+                'repetition_penalty': 2
+            }
+            
+            logger.info(f"TTSリクエスト開始: テキスト '{text[:30]}...'")
+            
+            # TTSエンドポイントにGETリクエストを送信
+            response = requests.get('http://127.0.0.1:9880/tts', params=params)
+            
+            # レスポンスの処理
+            if response.status_code == 200:
+                # 音声データをファイルに保存
+                with open(output_file, 'wb') as f:
+                    f.write(response.content)
+                logger.info(f"TTSリクエスト成功: 音声ファイルを保存: {output_file}")
+                return str(output_file)
+            else:
+                logger.error(f"TTSリクエストエラー: ステータス {response.status_code}: {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"音声合成エラー: {e}", exc_info=True)
+            return None
