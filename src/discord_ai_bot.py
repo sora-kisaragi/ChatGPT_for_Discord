@@ -315,7 +315,7 @@ class ChatBot:
         # グループコマンドをツリーに追加
         self.bot.tree.add_command(voice_setting_group)
         
-        @self.bot.tree.command(name="tts", description="入力したテキストをそのまま音声に変換して送信します")
+        @self.bot.tree.command(name="tts", description="入力したテキストを音声に変換して送信します")
         @discord.app_commands.describe(
             text="音声に変換するテキスト",
             voice_type="音声タイプ (未指定の場合はユーザーまたはチャンネルのデフォルト設定を使用)"
@@ -325,31 +325,31 @@ class ChatBot:
             text: str, 
             voice_type: str = None
         ):
-            """入力テキストをそのまま音声に変換して送信するコマンド"""
+            """テキストをそのまま音声に変換して送信するコマンド"""
             # チャンネル権限確認
-            if not self._check_channel_permission(interaction):
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
                 await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
                 return
             
             await self._handle_tts_slash_command(interaction, text, voice_type)
-        
-        @self.bot.tree.command(name="voice", description="入力に対するAIの返答を生成し、その返答を音声で送信します")
+
+        @self.bot.tree.command(name="voice", description="LLMで生成したテキストを音声に変換して送信します")
         @discord.app_commands.describe(
-            text="AIへの質問や指示",
+            prompt="LLMへの入力テキスト（これを元にAIが応答し、その応答が音声に変換されます）",
             voice_type="音声タイプ (未指定の場合はユーザーまたはチャンネルのデフォルト設定を使用)"
         )
         async def voice_command(
             interaction: discord.Interaction, 
-            text: str, 
+            prompt: str, 
             voice_type: str = None
         ):
-            """AIの返答を音声に変換して送信するコマンド"""
+            """LLMで生成したテキストを音声に変換して送信するコマンド"""
             # チャンネル権限確認
-            if not self._check_channel_permission(interaction):
+            if not validate_channel_access(interaction.channel_id, self.discord_config.channel_ids):
                 await interaction.response.send_message("このチャンネルでは使用できません。", ephemeral=True)
                 return
             
-            await self._handle_voice_slash_command(interaction, text, voice_type)
+            await self._handle_voice_slash_command(interaction, prompt, voice_type)
     
     async def _handle_ai_slash_command(self, interaction: discord.Interaction, prompt: str):
         """AI対話スラッシュコマンドの処理"""
@@ -477,11 +477,12 @@ class ChatBot:
 
 **音声機能:**
 🎤 `/tel` - ボイスチャンネルでAIと対話
-🔊 `/tts [text]` - 入力したテキストをそのまま音声に変換して送信
-🤖 `/voice [text]` - 入力に対するAI返答を生成し、音声で送信
+🔊 `/tts [text]` - テキストを直接音声に変換して送信
+🎯 `/voice [prompt]` - LLMで生成したテキストを音声に変換して送信
 🔧 `/voice_setting list` - 利用可能な音声タイプを表示
 👤 `/voice_setting user_default [type]` - あなたのデフォルト音声タイプを設定
 📢 `/voice_setting channel_default [type]` - チャンネルのデフォルト音声タイプを設定
+🔧 `/voice_setting` - 音声設定を管理
 
 **現在の設定:**
 🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
@@ -620,10 +621,10 @@ class ChatBot:
             logger.warning("録音に失敗しました")
     
     async def _handle_tts_slash_command(self, interaction: discord.Interaction, text: str, voice_type: str = None):
-        """入力テキストをそのまま音声に変換して送信するコマンドの処理"""
+        """テキストを直接音声に変換して送信するコマンドの処理"""
         await interaction.response.defer()
         
-        logger.info(f"TTS実行: {interaction.user.name}, テキスト: {text}, 音声タイプ: {voice_type}")
+        logger.info(f"TTS音声生成コマンド実行: {interaction.user.name}, テキスト: {text}, 音声タイプ: {voice_type}")
         
         try:
             # TTSエンドポイントを使用して音声合成
@@ -638,7 +639,12 @@ class ChatBot:
             if synthesized_audio:
                 # 音声ファイルが生成できた場合、添付ファイルとして送信
                 await interaction.followup.send(
-                    f"生成された音声ファイルです：\n「{text}」", 
+                    f"""🔊 **音声ファイルが生成されました**
+                    
+📝 **テキスト:**
+```
+{text}
+```""", 
                     file=discord.File(synthesized_audio, filename=f"tts_{interaction.user.id}.wav")
                 )
                 
@@ -652,21 +658,27 @@ class ChatBot:
                         await self.voice_handler.play_audio(voice_channel.guild.id, synthesized_audio)
             else:
                 await interaction.followup.send(
-                    f"音声生成に失敗しました。TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。\n"
-                    f"入力テキスト: {text}"
+                    f"""❌ **音声生成に失敗しました**
+                    
+TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。
+
+📝 **入力テキスト:**
+```
+{text}
+```"""
                 )
         except Exception as e:
-            logger.error(f"TTS実行エラー: {e}", exc_info=True)
+            logger.error(f"TTS音声生成エラー: {e}", exc_info=True)
             await interaction.followup.send(f"音声生成中にエラーが発生しました: {e}")
-    
-    async def _handle_voice_slash_command(self, interaction: discord.Interaction, text: str, voice_type: str = None):
-        """AIの返答を音声に変換して送信するコマンドの処理"""
+
+    async def _handle_voice_slash_command(self, interaction: discord.Interaction, prompt: str, voice_type: str = None):
+        """LLMで生成したテキストを音声に変換して送信するコマンドの処理"""
         await interaction.response.defer()
         
-        logger.info(f"AI音声生成コマンド実行: {interaction.user.name}, テキスト: {text}, 音声タイプ: {voice_type}")
+        logger.info(f"AI応答音声生成コマンド実行: {interaction.user.name}, プロンプト: {prompt}, 音声タイプ: {voice_type}")
         
         try:
-            # チャンネルIDを取得
+            # チャンネルID
             channel_id = interaction.channel_id
             
             # 初回の場合はシステム設定を追加
@@ -678,7 +690,7 @@ class ChatBot:
                     self.conversation_manager.set_system_setting(channel_id, channel_prompt)
             
             # ユーザーメッセージを履歴に追加
-            self.conversation_manager.add_message(channel_id, "user", text)
+            self.conversation_manager.add_message(channel_id, "user", prompt)
             
             # AI応答生成
             messages = self.conversation_manager.get_messages(channel_id)
@@ -690,10 +702,19 @@ class ChatBot:
             # 応答を整形
             formatted_response = format_response_text(ai_response)
             
-            # メッセージでAI応答を送信
-            await interaction.followup.send(f"🤖 AIの回答: \n{formatted_response}")
+            # プロンプトとAIの返答を明確に表示
+            response_message = f"""📝 **あなたの質問:**
+```
+{prompt}
+```
+
+🤖 **AIの応答:**
+{formatted_response}"""
+
+            # テキスト応答を送信
+            await interaction.followup.send(response_message)
             
-            # 音声合成で応答を読み上げる
+            # TTSエンドポイントを使用して音声合成
             synthesized_audio = await self.voice_handler.synthesize_speech(
                 text=ai_response,
                 media_type='wav',
@@ -705,8 +726,8 @@ class ChatBot:
             if synthesized_audio:
                 # 音声ファイルが生成できた場合、添付ファイルとして送信
                 await interaction.followup.send(
-                    f"AIの回答を音声で聞く:", 
-                    file=discord.File(synthesized_audio, filename=f"ai_voice_{interaction.user.id}.wav")
+                    f"生成された音声ファイルです:", 
+                    file=discord.File(synthesized_audio, filename=f"voice_{interaction.user.id}.wav")
                 )
                 
                 # ユーザーがボイスチャンネルに接続している場合は、そこでも再生
@@ -719,12 +740,50 @@ class ChatBot:
                         await self.voice_handler.play_audio(voice_channel.guild.id, synthesized_audio)
             else:
                 await interaction.followup.send(
-                    f"AI応答の音声生成に失敗しました。TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。"
+                    f"音声生成に失敗しました。TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。"
                 )
                 
         except Exception as e:
-            logger.error(f"AI音声生成エラー: {e}", exc_info=True)
-            await interaction.followup.send(f"AI応答または音声生成中にエラーが発生しました: {e}")
+            logger.error(f"AI応答音声生成エラー: {e}", exc_info=True)
+            
+            # エラーの種類に応じたメッセージを表示
+            if "connection" in str(e).lower() or "timeout" in str(e).lower():
+                error_msg = f"AI サーバーへの接続に失敗しました。\nプロバイダー: {self.ai_config.provider}\nエラー: {str(e)}"
+            else:
+                error_msg = f"AI API でエラーが発生しました。\nプロバイダー: {self.ai_config.provider}\nエラー: {str(e)}"
+            
+            await interaction.followup.send(error_msg)
+            
+            # エラー時は最後のユーザーメッセージを削除
+            messages = self.conversation_manager.get_messages(channel_id)
+            if messages and messages[-1]["role"] == "user":
+                messages.pop()
+            
+            if synthesized_audio:
+                # 音声ファイルが生成できた場合、添付ファイルとして送信
+                await interaction.followup.send(
+                    f"🔊 **音声ファイルが生成されました**", 
+                    file=discord.File(synthesized_audio, filename=f"voice_{interaction.user.id}.wav")
+                )
+                
+                # ユーザーがボイスチャンネルに接続している場合は、そこでも再生
+                if interaction.user.voice:
+                    voice_channel = interaction.user.voice.channel
+                    # ボイスチャンネルに接続
+                    success = await self.voice_handler.join_voice_channel(voice_channel)
+                    if success:
+                        # 音声を再生
+                        await self.voice_handler.play_audio(voice_channel.guild.id, synthesized_audio)
+            else:
+                await interaction.followup.send(
+                    f"""❌ **音声生成に失敗しました**
+                    
+TTSサーバー（http://127.0.0.1:9880）が起動しているか確認してください。
+AIの応答は上記のテキストメッセージをご確認ください。"""
+                )
+        except Exception as e:
+            logger.error(f"音声生成エラー: {e}", exc_info=True)
+            await interaction.followup.send(f"音声生成中にエラーが発生しました: {e}")
     
     async def _handle_voice_setting_list_slash_command(self, interaction: discord.Interaction):
         """音声タイプ一覧表示コマンドの処理"""
@@ -756,8 +815,10 @@ class ChatBot:
 - `/voice_setting channel_default [voice_type]` - このチャンネルのデフォルト設定を変更
 
 **使い方:**
-- `/voice [text]` - デフォルト音声でテキストを読み上げ
-- `/voice [text] voice_type:[type]` - 指定した音声タイプでテキストを読み上げ
+- `/tts [text]` - デフォルト音声でテキストを直接読み上げ
+- `/tts [text] voice_type:[type]` - 指定した音声タイプでテキストを読み上げ
+- `/voice [prompt]` - LLMの応答を音声で読み上げ
+- `/voice [prompt] voice_type:[type]` - 指定した音声タイプでLLM応答を読み上げ
 
 👤：ユーザーデフォルト設定
 📢：チャンネルデフォルト設定"""
@@ -850,8 +911,8 @@ class ChatBot:
 👁️ `/show` - 現在の設定を表示
 ❓ `/help` - ヘルプを表示
 🎤 `/tel` - ボイスチャンネルでAIと対話
-🔊 `/tts [text]` - テキストをそのまま音声に変換
-🤖 `/voice [text]` - AI返答を生成し音声で送信
+🔊 `/tts [text]` - テキストを直接音声に変換
+🎯 `/voice [prompt]` - LLMで生成したテキストを音声に変換
 
 **プロンプト設定コマンド:**
 📝 `/setting edit` - プロンプトを対話的に編集
