@@ -338,6 +338,65 @@ class VoiceHandler:
         except Exception as e:
             logger.error(f"ファイル削除エラー: {e}", exc_info=True)
     
+    async def update_tts_weights(self, voice_preset):
+        """
+        TTSサーバーの重みファイルを更新する
+        
+        Args:
+            voice_preset (str): 音声プリセット名
+            
+        Returns:
+            bool: 更新に成功したかどうか
+        """
+        try:
+            import requests
+            
+            # プリセットに対応する重みファイルのパス設定
+            weights_settings = {
+                "ultraman_x": {
+                    "gpt_weights": "GPT_weights/ULTRAMAN_X-e15.ckpt",
+                    "sovits_weights": "SoVITS_weights/ULTRAMAN_X_e8_s200.pth"
+                },
+                "floyd_leech": {
+                    "gpt_weights": "GPT_weights/floyd-e15.ckpt",
+                    "sovits_weights": "SoVITS_weights/floyd_e8_s64.pth"
+                }
+                # 他のプリセットを追加可能
+            }
+            
+            # 指定されたプリセットの設定がない場合はデフォルト値を使用
+            if voice_preset not in weights_settings:
+                logger.warning(f"プリセット '{voice_preset}' の重み設定が見つかりません。デフォルト設定を使用します。")
+                voice_preset = "ultraman_x"
+                
+            # GPT重みの設定更新
+            gpt_weights_path = weights_settings[voice_preset]["gpt_weights"]
+            gpt_response = requests.get(
+                'http://127.0.0.1:9880/set_gpt_weights',
+                params={'t2s_weights_path': gpt_weights_path}
+            )
+            
+            # SoVITS重みの設定更新
+            sovits_weights_path = weights_settings[voice_preset]["sovits_weights"]
+            sovits_response = requests.get(
+                'http://127.0.0.1:9880/set_sovits_weights',
+                params={'vits_weights_path': sovits_weights_path}
+            )
+            
+            # レスポンスの確認
+            if gpt_response.status_code == 200 and sovits_response.status_code == 200:
+                logger.info(f"TTSサーバーの重み設定を更新しました: プリセット '{voice_preset}'")
+                logger.info(f"GPT重み: {gpt_weights_path}")
+                logger.info(f"SoVITS重み: {sovits_weights_path}")
+                return True
+            else:
+                logger.error(f"TTSサーバーの重み設定更新に失敗しました: GPT({gpt_response.status_code}), SoVITS({sovits_response.status_code})")
+                return False
+                
+        except Exception as e:
+            logger.error(f"TTSサーバーの重み設定更新エラー: {e}", exc_info=True)
+            return False
+    
     async def synthesize_speech(self, text, output_file=None, voice_preset=None, 
                           media_type='wav', user_id=None, channel_id=None, delete_after_use=True):
         """
@@ -384,6 +443,9 @@ class VoiceHandler:
                     "prompt_text": 'オンボロ寮のゴーストってクラゲみたい話してみたいから今度小指ちゃんのとこに泊めてよぉ。'
                 }
                 logger.info("フロイド設定を強制的に上書きしました")
+            
+            # TTSサーバーの重み設定を更新
+            await self.update_tts_weights(voice_preset)
             
             # TTSのパラメータを設定
             params = {
