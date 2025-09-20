@@ -1,10 +1,10 @@
 # Discord ChatGPT/Ollama Bot
 
-OpenAI ChatGPT API と Ollama API の両方に対応した Discord Bot です。
+OpenAI ChatGPT API、Ollama API に加えて Google Gemini API に対応した Discord Bot です。
 
 ## 特徴
 
-- **複数AI対応**: OpenAI ChatGPT と Ollama の両方をサポート
+- **複数AI対応**: OpenAI / Ollama / Google Gemini をサポート
 - **チャンネル別会話管理**: チャンネルごとに独立した会話履歴
 - **設定可能なプロンプト**: チャンネルごとにAIの設定をカスタマイズ
 - **環境変数による設定**: 安全で簡単な設定管理
@@ -15,7 +15,7 @@ OpenAI ChatGPT API と Ollama API の両方に対応した Discord Bot です。
 
 - Python 3.8以上
 - Discord Bot Token
-- OpenAI API Key (OpenAI使用時) または Ollama サーバー (Ollama使用時)
+- OpenAI API Key (OpenAI使用時) / Ollama サーバー (Ollama使用時) / Google Gemini API Key (Gemini使用時)
 
 ## インストール
 
@@ -46,7 +46,7 @@ DISCORD_TOKEN=your_discord_bot_token_here
 DISCORD_CHANNEL_IDS=123456789012345678,987654321098765432
 
 # AI プロバイダー設定
-AI_PROVIDER=ollama  # "openai" または "ollama"
+AI_PROVIDER=ollama  # "openai" / "ollama" / "gemini"
 
 # OpenAI設定 (AI_PROVIDER=openai の場合)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -55,6 +55,10 @@ OPENAI_MODEL=gpt-3.5-turbo
 # Ollama設定 (AI_PROVIDER=ollama の場合)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1
+
+# Gemini設定 (AI_PROVIDER=gemini の場合)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-1.5-pro
 
 # 共通AI設定
 MAX_HISTORY=10
