@@ -33,15 +33,42 @@ class ChatBot:
         # 設定読み込み
         self.ai_config, self.discord_config, self.prompt_config = load_config()
         
-        # コンポーネント初期化
-        self.ai_client: AIClient = create_ai_client(
-            self.ai_config.provider,
-            api_key=self.ai_config.openai_api_key,
-            model=self.ai_config.openai_model if self.ai_config.provider == "openai" else self.ai_config.ollama_model,
-            base_url=self.ai_config.ollama_base_url if self.ai_config.provider == "ollama" else None,
-            temperature=self.ai_config.temperature,
-            max_tokens=self.ai_config.max_tokens
-        )
+        # コンポーネント初期化（プロバイダー別の引数を調整）
+        provider_lower = self.ai_config.provider.lower()
+        common_kwargs = dict(temperature=self.ai_config.temperature, max_tokens=self.ai_config.max_tokens)
+        if provider_lower == "openai":
+            self.ai_client = create_ai_client(
+                provider_lower,
+                api_key=self.ai_config.openai_api_key,
+                model=self.ai_config.openai_model,
+                **common_kwargs,
+            )
+        elif provider_lower == "ollama":
+            self.ai_client = create_ai_client(
+                provider_lower,
+                base_url=self.ai_config.ollama_base_url,
+                model=self.ai_config.ollama_model,
+                **common_kwargs,
+            )
+        elif provider_lower == "gemini":
+            self.ai_client = create_ai_client(
+                provider_lower,
+                api_key=self.ai_config.gemini_api_key,
+                model=self.ai_config.gemini_model,
+                **common_kwargs,
+            )
+        else:
+            raise ValueError(f"Unsupported AI provider: {self.ai_config.provider}")
+
+        # 表示用モデル名
+        if provider_lower == "openai":
+            self._display_model = self.ai_config.openai_model
+        elif provider_lower == "ollama":
+            self._display_model = self.ai_config.ollama_model
+        elif provider_lower == "gemini":
+            self._display_model = self.ai_config.gemini_model
+        else:
+            self._display_model = "unknown"
         
         self.conversation_manager = ConversationManager(max_history=self.ai_config.max_history)
         
@@ -312,7 +339,7 @@ class ChatBot:
 
 **AI設定:**
 🔹 プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`
 🔹 最大トークン: `{self.ai_config.max_tokens if self.ai_config.max_tokens else '制限なし'}`
@@ -336,7 +363,7 @@ class ChatBot:
 
 **設定情報:**
 🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`"""
         
@@ -364,7 +391,7 @@ class ChatBot:
 
 **現在の設定:**
 🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 
 お気軽にお話しください！"""

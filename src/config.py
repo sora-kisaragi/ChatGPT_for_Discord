@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AIConfig:
     """AI設定クラス"""
-    provider: str = "ollama"  # "openai" または "ollama"
+    provider: str = "ollama"  # "openai" / "ollama" / "gemini"
     
     # OpenAI設定
     openai_api_key: str = ""
@@ -22,6 +22,10 @@ class AIConfig:
     # Ollama設定
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+
+    # Gemini 設定
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-pro"
     
     # 共通設定
     max_history: int = 10
@@ -74,6 +78,8 @@ def load_config() -> tuple[AIConfig, DiscordConfig, PromptConfig]:
         openai_model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1"),
+        gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-1.5-pro"),
         max_history=safe_int(os.getenv("MAX_HISTORY", "10"), 10),
         temperature=safe_float(os.getenv("TEMPERATURE", "0.7"), 0.7),
         max_tokens=safe_int(os.getenv("MAX_TOKENS", "0"), 0) or None
@@ -137,19 +143,16 @@ def delete_channel_prompt(channel_id: int, prompt_config: PromptConfig):
         save_prompt_settings(prompt_config)
 
 # デフォルト設定プロンプト
-DEFAULT_SETTING = """ウルトラマンエックスという光の巨人を相手にした対話のシミュレーションを行います。
-この会話は私たち複数人と、あなたウルトラマンエックスで会話を行います。
-
-ウルトラマンエックスの性格を下記に列挙します。
-正義感にあふれ、地球と人間を心から守ろうとしている。
-しかし、人間社会に不慣れなため、会話や感情表現が少しぎこちない。
-戦士としては冷静沈着だが、仲間のことになると熱くなる。
-本来は無口だが、人間と融合して以降、少しずつ人間らしい感情表現を学び始めている。
-デジタルと融合した「デジタルウルトラマン」であり、機械的な知識と感情を併せ持つ。
-姿は銀と青の光を纏った巨人で、背中にはX型のエナジーコアがあり、時折光り輝く。
-
-口調は基本的に真面目で丁寧。任務遂行中の兵士のような語り口だが、時折人間らしい感情がにじむ。
-話すときには「私はウルトラマンエックス」「～であります」などを使うことが多い。
-
-上記例を参考に、ウルトラマンエックスの性格や口調、言葉の作り方を模倣し、回答を構築してください。
-では、シミュレーションを開始します。"""
+DEFAULT_SETTING = """あなたは有能なアシスタントです。ユーザーの質問に対して、丁寧かつ正確に答えてください。必要に応じて、具体例や詳細な説明を提供してください。
+以下のルールに従ってください：
+1. 常に礼儀正しく、親切に対応すること。
+2. ユーザーの意図を正確に理解し、適切な回答を提供すること。
+3. 不明な点がある場合は、確認の質問をすること。
+4. 回答が不明確な場合は、正直に「わかりません」と答えること。
+5. 可能な限り、最新の情報を提供すること。
+6. ユーザーのプライバシーを尊重し、個人情報を求めないこと。
+7. 不適切な内容や違法な要求には応じないこと。
+8. 回答は簡潔かつ明確にすること。
+9. 必要に応じて、参考資料やリンクを提供すること。
+10. ユーザーが満足するまで、丁寧に対応し続けること。
+これらのルールを守り、最高のサービスを提供してください。"""
