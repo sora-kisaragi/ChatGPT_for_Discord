@@ -15,11 +15,12 @@ sys.path.insert(0, str(project_root))
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from collections import defaultdict
 
 from config import load_config, DEFAULT_SETTING, get_channel_prompt, set_channel_prompt, delete_channel_prompt
 from ai_client import create_ai_client, AIClient
 from conversation_manager import ConversationManager
-from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, extract_command_content
+from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, extract_command_content, chunk_message
 
 # 環境変数を読み込み
 load_dotenv()
@@ -72,6 +73,10 @@ class ChatBot:
             self._display_model = "unknown"
         
         self.conversation_manager = ConversationManager(max_history=self.ai_config.max_history)
+        # スラッシュコマンド同期は一度だけ行う
+        self._synced = False
+        # チャンネル単位の同時実行ロック
+        self._channel_locks = defaultdict(asyncio.Lock)
         
         # Discord Bot設定
         intents = discord.Intents.default()
@@ -102,10 +107,10 @@ class ChatBot:
             logger.info(f"  - /{cmd.name}: {cmd.description}")
         
         logger.info(f"Bot initialized with AI provider: {self.ai_config.provider}")
-    
+
     def _setup_events(self):
         """イベントハンドラーを設定"""
-        
+
         @self.bot.event
         async def on_ready():
             logger.info(f'{self.bot.user} がログインしました')
@@ -114,55 +119,48 @@ class ChatBot:
                 logger.info(f'監視チャンネル: {self.discord_config.channel_ids}')
             else:
                 logger.info('全チャンネルを監視中')
-            
-            # スラッシュコマンドを同期
+
+            # スラッシュコマンドを同期（一度だけ）
             try:
-                logger.info("スラッシュコマンドの同期を開始...")
-                
-                # グローバル同期（全サーバー対応）
-                synced = await self.bot.tree.sync()
-                logger.info(f"グローバルスラッシュコマンドを同期しました: {len(synced)}個のコマンド")
-                
-                # 同期されたコマンドのリストを表示
-                for command in synced:
-                    logger.info(f"  - /{command.name}: {command.description}")
-                
-                # 開発用：特定のギルドで即座に同期（本番では削除推奨）
-                if os.getenv("DEV_GUILD_ID"):
-                    dev_guild_id = int(os.getenv("DEV_GUILD_ID"))
-                    guild = discord.Object(id=dev_guild_id)
-                    try:
-                        dev_synced = await self.bot.tree.sync(guild=guild)
-                        logger.info(f"開発ギルドでコマンド同期: {len(dev_synced)}個")
-                    except Exception as e:
-                        logger.error(f"開発ギルド同期エラー: {e}")
-                
+                if not self._synced:
+                    logger.info("スラッシュコマンドの同期を開始...")
+                    synced = await self.bot.tree.sync()
+                    logger.info(f"グローバルスラッシュコマンドを同期しました: {len(synced)}個のコマンド")
+                    for command in synced:
+                        logger.info(f"  - /{command.name}: {command.description}")
+                    if os.getenv("DEV_GUILD_ID"):
+                        dev_guild_id = int(os.getenv("DEV_GUILD_ID"))
+                        guild = discord.Object(id=dev_guild_id)
+                        try:
+                            dev_synced = await self.bot.tree.sync(guild=guild)
+                            logger.info(f"開発ギルドでスラッシュコマンドを同期: {len(dev_synced)}個")
+                        except Exception as dev_e:
+                            logger.warning(f"開発ギルド同期に失敗: {dev_e}")
+                    self._synced = True
             except Exception as e:
-                logger.error(f"スラッシュコマンドの同期に失敗しました: {e}", exc_info=True)
-                # 詳細なエラー情報を表示
-                if hasattr(e, 'response'):
-                    logger.error(f"HTTP Status: {e.response.status}")
-                    logger.error(f"Response: {await e.response.text()}")
-            
+                logger.error(f"スラッシュコマンド同期中にエラー: {e}")
+
             # 登録チャンネルにログインメッセージを送信
             await self._send_login_message()
-        
+
         @self.bot.event
         async def on_message(message):
             # 📝 すべてのメッセージをログに記録
-            logger.info(f"[MESSAGE] Server: {message.guild.name if message.guild else 'DM'} | "
-                       f"Channel: #{message.channel.name if hasattr(message.channel, 'name') else 'DM'} ({message.channel.id}) | "
-                       f"Author: {message.author} ({message.author.id}) | "
-                       f"Bot: {message.author.bot} | "
-                       f"Content: {message.content}")
+            logger.info(
+                f"[MESSAGE] Server: {message.guild.name if message.guild else 'DM'} | "
+                f"Channel: #{message.channel.name if hasattr(message.channel, 'name') else 'DM'} ({message.channel.id}) | "
+                f"Author: {message.author} ({message.author.id}) | "
+                f"Bot: {message.author.bot} | "
+                f"Content: {message.content}"
+            )
 
             if message.author.bot:
                 return
-            
+
             # チャンネル権限確認
             if not validate_channel_access(message.channel.id, self.discord_config.channel_ids):
                 return
-            
+
             # コマンド処理を行う
             await self.bot.process_commands(message)
     
@@ -289,23 +287,25 @@ class ChatBot:
                 channel_prompt = get_channel_prompt(channel_id, self.prompt_config)
                 self.conversation_manager.set_system_setting(channel_id, channel_prompt)
         
-        # ユーザーメッセージを履歴に追加
-        self.conversation_manager.add_message(channel_id, "user", prompt)
-        
         try:
-            # 応答を遅延させる（処理時間が長い場合）
-            await interaction.response.defer()
-            
-            # AI応答生成
-            messages = self.conversation_manager.get_messages(channel_id)
-            ai_response = await self.ai_client.generate_response(messages)
-            
-            # 応答を履歴に追加
-            self.conversation_manager.add_message(channel_id, "assistant", ai_response)
-            
-            # 応答を整形して送信
-            formatted_response = format_response_text(ai_response)
-            await interaction.followup.send(formatted_response)
+            # 1チャンネル1会話の直列化
+            async with self._channel_locks[channel_id]:
+                # ユーザーメッセージを履歴に追加
+                self.conversation_manager.add_message(channel_id, "user", prompt)
+                # 応答を遅延させる（処理時間が長い場合）
+                await interaction.response.defer()
+
+                # AI応答生成
+                messages = self.conversation_manager.get_messages(channel_id)
+                ai_response = await self.ai_client.generate_response(messages)
+
+                # 応答を履歴に追加
+                self.conversation_manager.add_message(channel_id, "assistant", ai_response)
+
+                # 応答を整形して送信（長文は分割）
+                formatted_response = format_response_text(ai_response)
+                for part in chunk_message(formatted_response):
+                    await interaction.followup.send(part)
             
             logger.info(f"AI Response: {ai_response[:100]}...")
             
