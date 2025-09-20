@@ -19,6 +19,7 @@ idna==3.10
 jiter==0.10.0
 multidict==6.6.3
 openai==1.97.0
+google-generativeai==0.8.5
 propcache==0.3.2
 pydantic==2.11.7
 pydantic_core==2.33.2

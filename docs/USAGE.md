@@ -1,7 +1,7 @@
 # Discord ChatGPT/Ollama Bot 使用方法
 
 ## 概要
-このボットはOpenAI ChatGPTとOllama APIの両方に対応したDiscordボットです。
+このボットは OpenAI ChatGPT / Ollama / Google Gemini API に対応した Discord ボットです。
 
 ## セットアップ
 
@@ -19,7 +19,7 @@ DISCORD_TOKEN=your_discord_bot_token
 DISCORD_CHANNEL_IDS=channel_id1,channel_id2  # 空にすると全チャンネル
 
 # AI プロバイダー設定
-AI_PROVIDER=ollama  # "openai" または "ollama"
+AI_PROVIDER=ollama  # "openai" / "ollama" / "gemini"
 
 # OpenAI設定 (AI_PROVIDER=openai の場合)
 OPENAI_API_KEY=your_openai_api_key
@@ -36,12 +36,21 @@ MAX_TOKENS=  # 空にすると制限なし
 
 # ログレベル
 LOG_LEVEL=INFO
+
+# Gemini設定 (AI_PROVIDER=gemini の場合)
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-pro
 ```
 
 ### 3. Ollama セットアップ（Ollamaを使用する場合）
 1. [Ollama](https://ollama.ai/)をインストール
 2. モデルをダウンロード：`ollama pull llama3.1`
 3. Ollamaサーバーを起動：`ollama serve`
+
+### 4. Gemini の準備（Gemini を使用する場合）
+1. Google AI Studio で API キーを取得（GEMINI_API_KEY）
+2. `requirements.txt` をインストール（google-generativeai を含む）
+3. .env に GEMINI_API_KEY と GEMINI_MODEL を設定
 
 ## 使用方法
 
