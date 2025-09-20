@@ -3,7 +3,7 @@
 """
 import logging
 import asyncio
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
@@ -24,14 +24,24 @@ def setup_logging(level: str = "INFO") -> logging.Logger:
 
 def format_response_text(text: str) -> str:
     """レスポンステキストを整形"""
-    # 句点で改行を追加
-    formatted = text.replace('。', '。\n')
-    
-    # 長すぎるメッセージを分割（Discord制限: 2000文字）
-    if len(formatted) > 2000:
-        formatted = formatted[:1997] + "..."
-    
-    return formatted
+    # 句点で改行を追加（分割は chunk_message に委譲）
+    return text.replace('。', '。\n')
+
+def chunk_message(text: str, limit: int = 2000) -> List[str]:
+    """
+    Discordのメッセージ上限に合わせて文字列をチャンクに分割
+    """
+    if text is None:
+        return [""]
+    if not text:
+        return [""]
+    chunks: List[str] = []
+    start = 0
+    while start < len(text):
+        end = min(start + limit, len(text))
+        chunks.append(text[start:end])
+        start = end
+    return chunks
 
 async def safe_send_message(channel, content: str, delay: float = 0.0):
     """安全にメッセージを送信（レート制限対応）"""
@@ -41,8 +51,20 @@ async def safe_send_message(channel, content: str, delay: float = 0.0):
     try:
         await channel.send(content)
     except Exception as e:
-        logging.error(f"Failed to send message: {e}")
-        raise
+        # discord.py の HTTPException(429) に簡易対応
+        try:
+            from discord.errors import HTTPException  # 遅延インポート
+        except Exception:
+            HTTPException = Exception  # フォールバック
+
+        if isinstance(e, HTTPException) and getattr(e, "status", None) == 429:
+            retry_after = float(getattr(e, "retry_after", 1.5) or 1.5)
+            logging.warning(f"Rate limited (429). Retrying after {retry_after}s")
+            await asyncio.sleep(retry_after)
+            await channel.send(content)
+        else:
+            logging.error(f"Failed to send message: {e}")
+            raise
 
 def validate_channel_access(channel_id: int, allowed_channels: list) -> bool:
     """チャンネルアクセス権限を確認"""
