@@ -334,11 +334,18 @@ class ChatBot:
         """設定表示スラッシュコマンドの処理"""
         channel_id = interaction.channel_id
         current_setting = self.conversation_manager.get_system_setting(channel_id)
-        
+
+        # 表示用のプロバイダー名を整形
+        provider_name = {
+            "openai": "OpenAI",
+            "ollama": "Ollama",
+            "gemini": "Gemini",
+        }.get(self.ai_config.provider.lower(), self.ai_config.provider)
+
         show_text = f"""⚙️ **現在の設定 - <#{channel_id}>**
 
 **AI設定:**
-🔹 プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 プロバイダー: `{provider_name}`
 🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`
@@ -346,14 +353,21 @@ class ChatBot:
 
 **システム設定:**
 {current_setting[:500] + '...' if current_setting and len(current_setting) > 500 else current_setting or 'デフォルト設定'}"""
-        
+
         await interaction.response.send_message(show_text)
-    
+
     async def _handle_stats_slash_command(self, interaction: discord.Interaction):
         """統計スラッシュコマンドの処理"""
         channel_id = interaction.channel_id
         stats = self.conversation_manager.get_conversation_stats(channel_id)
-        
+
+        # 表示用のプロバイダー名を整形
+        provider_name = {
+            "openai": "OpenAI",
+            "ollama": "Ollama",
+            "gemini": "Gemini",
+        }.get(self.ai_config.provider.lower(), self.ai_config.provider)
+
         stats_text = f"""📊 **会話統計 - <#{channel_id}>**
 
 💬 総メッセージ数: `{stats['total_messages']}件`
@@ -362,15 +376,21 @@ class ChatBot:
 ⚙️ システムメッセージ: `{stats['system_messages']}件`
 
 **設定情報:**
-🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 AI プロバイダー: `{provider_name}`
 🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`"""
-        
+
         await interaction.response.send_message(stats_text)
     
     async def _handle_help_slash_command(self, interaction: discord.Interaction):
         """ヘルプスラッシュコマンドの処理"""
+        provider_name = {
+            "openai": "OpenAI",
+            "ollama": "Ollama",
+            "gemini": "Gemini",
+        }.get(self.ai_config.provider.lower(), self.ai_config.provider)
+
         help_text = f"""🤖 **{self.bot.user.name} の使用方法**
 
 **AIと対話:**
@@ -390,7 +410,7 @@ class ChatBot:
 🔄 `/setting reset` - デフォルト設定に戻す
 
 **現在の設定:**
-🔹 AI プロバイダー: `{self.ai_config.provider.upper()}`
+🔹 AI プロバイダー: `{provider_name}`
 🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 
@@ -499,11 +519,18 @@ class ChatBot:
             logger.info("チャンネル制限なし - ログインメッセージは送信しません")
             return
         
+        # 表示用のプロバイダー名を整形
+        provider_name = {
+            "openai": "OpenAI",
+            "ollama": "Ollama",
+            "gemini": "Gemini",
+        }.get(self.ai_config.provider.lower(), self.ai_config.provider)
+
         login_message = f"""🤖 **{self.bot.user.name} がログインしました！**
 
 **AI設定情報:**
-🔹 プロバイダー: `{self.ai_config.provider.upper()}`
-🔹 モデル: `{self.ai_config.ollama_model if self.ai_config.provider == 'ollama' else self.ai_config.openai_model}`
+🔹 プロバイダー: `{provider_name}`
+🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`
 
