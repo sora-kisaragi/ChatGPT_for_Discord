@@ -10,7 +10,7 @@
 pip install -r requirements.txt
 ```
 
-### 2. 環境変数設定
+### 2. 環境変数設定（.env）
 `.env`ファイルを作成し、以下の設定を行ってください：
 
 ```env
@@ -40,6 +40,10 @@ LOG_LEVEL=INFO
 # Gemini設定 (AI_PROVIDER=gemini の場合)
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-1.5-pro
+
+# 開発向け（任意）
+DEV_GUILD_ID= # 指定すると当該ギルドでの個別同期も実施
+BOT_APPLICATION_ID= # 指定可能な場合のみ設定（未設定なら省略）
 ```
 
 ### 3. Ollama セットアップ（Ollamaを使用する場合）
@@ -93,3 +97,9 @@ bash start.sh
 
 ## ログ
 ボットの動作ログは`discord_bot.log`ファイルに記録されます。
+
+## 付記（挙動の改善点）
+- 長文は自動的に分割して送信（Discord の 2000 文字制限に対応）
+- 429 レート制限時に簡易リトライ
+- スラッシュコマンドの同期は起動後一度のみ実施
+- /show /stats /help /setting 系の返答は基本的に ephemeral（他のメンバーに見えません）

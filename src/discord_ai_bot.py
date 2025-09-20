@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 from collections import defaultdict
 
 from config import load_config, DEFAULT_SETTING, get_channel_prompt, set_channel_prompt, delete_channel_prompt
-from ai_client import create_ai_client, AIClient
+from ai_client import create_ai_client
 from conversation_manager import ConversationManager
-from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, extract_command_content, chunk_message
+from utils import setup_logging, format_response_text, safe_send_message, validate_channel_access, chunk_message
 
 # 環境変数を読み込み
 load_dotenv()
@@ -86,6 +86,7 @@ class ChatBot:
         # Bot初期化時にコマンドの自動同期を有効化
         # BOT_APPLICATION_ID が未設定/不正な場合は application_id を渡さない
         bot_kwargs = dict(
+            # スラッシュコマンド主体だが、discord.pyのBot初期化にはprefixが必要なため設定
             command_prefix='/',
             intents=intents,
             sync_commands=True,  # コマンドの自動同期
@@ -311,17 +312,48 @@ class ChatBot:
             
         except Exception as e:
             logger.error(f"AI API error: {e}", exc_info=True)
-            
-            # エラーの種類に応じたメッセージを表示
-            if "connection" in str(e).lower() or "timeout" in str(e).lower():
-                error_msg = f"AI サーバーへの接続に失敗しました。\nプロバイダー: {self.ai_config.provider}\nエラー: {str(e)}"
+            # エラーの種類に応じたメッセージ（ユーザー向けの対処を含める）
+            e_text = str(e)
+            provider = self.ai_config.provider
+            if any(k in e_text.lower() for k in ["connection", "timeout", "timed out", "dns"]):
+                error_msg = (
+                    f"❗ AI サーバーに接続できませんでした。\n"
+                    f"プロバイダー: `{provider}`\n"
+                    f"・ネットワーク状態や API サーバー稼働状況を確認してください。\n"
+                    f"・プロキシ/Firewall 利用時は許可設定を確認してください。\n"
+                    f"詳細: {e_text}"
+                )
+            elif any(k in e_text.lower() for k in ["unauthorized", "invalid api key", "401", "forbidden", "403"]):
+                error_msg = (
+                    f"❗ 認証に失敗しました。API キーが無効か権限が不足しています。\n"
+                    f"プロバイダー: `{provider}`\n"
+                    f"・.env の API キー設定を確認し、再起動してください。\n"
+                    f"詳細: {e_text}"
+                )
+            elif any(k in e_text.lower() for k in ["model", "not found", "unknown", "unsupported"]):
+                error_msg = (
+                    f"❗ 指定モデルの利用に失敗しました。\n"
+                    f"プロバイダー: `{provider}`\n"
+                    f"・.env のモデル名が正しいか確認してください。\n"
+                    f"詳細: {e_text}"
+                )
+            elif any(k in e_text.lower() for k in ["rate limit", "429", "too many requests"]):
+                error_msg = (
+                    f"⏳ レート制限中です。しばらく待ってから再度お試しください。\n"
+                    f"プロバイダー: `{provider}`\n"
+                    f"詳細: {e_text}"
+                )
             else:
-                error_msg = f"AI API でエラーが発生しました。\nプロバイダー: {self.ai_config.provider}\nエラー: {str(e)}"
-            
+                error_msg = (
+                    f"❗ AI API でエラーが発生しました。\n"
+                    f"プロバイダー: `{provider}`\n"
+                    f"詳細: {e_text}"
+                )
+
             if interaction.response.is_done():
-                await interaction.followup.send(error_msg)
+                await interaction.followup.send(error_msg, ephemeral=True)
             else:
-                await interaction.response.send_message(error_msg)
+                await interaction.response.send_message(error_msg, ephemeral=True)
             
             # エラー時は最後のユーザーメッセージを削除
             messages = self.conversation_manager.get_messages(channel_id)
@@ -362,8 +394,7 @@ class ChatBot:
 
 **システム設定:**
 {current_setting[:500] + '...' if current_setting and len(current_setting) > 500 else current_setting or 'デフォルト設定'}"""
-
-        await interaction.response.send_message(show_text)
+        await interaction.response.send_message(show_text, ephemeral=True)
 
     async def _handle_stats_slash_command(self, interaction: discord.Interaction):
         """統計スラッシュコマンドの処理"""
@@ -389,8 +420,7 @@ class ChatBot:
 🔹 モデル: `{self._display_model}`
 🔹 最大履歴: `{self.ai_config.max_history}件`
 🔹 温度設定: `{self.ai_config.temperature}`"""
-
-        await interaction.response.send_message(stats_text)
+        await interaction.response.send_message(stats_text, ephemeral=True)
     
     async def _handle_help_slash_command(self, interaction: discord.Interaction):
         """ヘルプスラッシュコマンドの処理"""
@@ -424,8 +454,7 @@ class ChatBot:
 🔹 最大履歴: `{self.ai_config.max_history}件`
 
 お気軽にお話しください！"""
-        
-        await interaction.response.send_message(help_text)
+        await interaction.response.send_message(help_text, ephemeral=True)
     
     async def _handle_setting_show_slash_command(self, interaction: discord.Interaction):
         """プロンプト設定表示スラッシュコマンドの処理"""
@@ -445,8 +474,8 @@ class ChatBot:
         # Discordのメッセージ長制限（2000文字）を考慮
         if len(show_text) > 1900:
             show_text = show_text[:1900] + "...\n```\n*（プロンプトが長いため省略されました）*"
-        
-        await interaction.response.send_message(show_text)
+
+        await interaction.response.send_message(show_text, ephemeral=True)
     
     async def _handle_setting_save_slash_command(self, interaction: discord.Interaction, prompt: str):
         """プロンプト保存スラッシュコマンドの処理"""
@@ -458,11 +487,11 @@ class ChatBot:
         
         # プロンプトを保存
         set_channel_prompt(channel_id, prompt, self.prompt_config)
-        
+
         # 現在の会話をリセット
         self.conversation_manager.reset_conversation(channel_id, prompt)
-        
-        await interaction.response.send_message("✅ プロンプトを保存し、会話をリセットしました。")
+
+        await interaction.response.send_message("✅ プロンプトを保存し、会話をリセットしました。", ephemeral=True)
         logger.info(f"Channel {channel_id}: Custom prompt saved")
     
     async def _handle_setting_reset_slash_command(self, interaction: discord.Interaction):
@@ -471,11 +500,11 @@ class ChatBot:
         
         # デフォルト設定に戻す
         delete_channel_prompt(channel_id, self.prompt_config)
-        
+
         # 会話をデフォルト設定でリセット
         self.conversation_manager.reset_conversation(channel_id, DEFAULT_SETTING)
-        
-        await interaction.response.send_message("✅ プロンプトをデフォルト設定に戻し、会話をリセットしました。")
+
+        await interaction.response.send_message("✅ プロンプトをデフォルト設定に戻し、会話をリセットしました。", ephemeral=True)
         logger.info(f"Channel {channel_id}: Prompt reset to default")
     
     async def _handle_setting_edit_slash_command(self, interaction: discord.Interaction):
@@ -492,33 +521,33 @@ class ChatBot:
 
 新しいプロンプトを入力してください（5分以内）。
 キャンセルする場合は `cancel` を入力してください。"""
-        
-        await interaction.response.send_message(edit_text)
-        
+
+        await interaction.response.send_message(edit_text, ephemeral=True)
+
         def check(m):
             return m.author == interaction.user and m.channel.id == channel_id
-        
+
         try:
             response = await self.bot.wait_for('message', check=check, timeout=300.0)
-            
+
             if response.content.strip().lower() == "cancel":
                 await response.reply("プロンプト編集をキャンセルしました。")
                 return
-            
+
             new_prompt = response.content.strip()
             if not new_prompt:
                 await response.reply("プロンプトが空です。編集をキャンセルしました。")
                 return
-            
+
             # プロンプトを保存
             set_channel_prompt(channel_id, new_prompt, self.prompt_config)
-            
+
             # 現在の会話をリセット
             self.conversation_manager.reset_conversation(channel_id, new_prompt)
-            
+
             await response.reply("✅ プロンプトを更新し、会話をリセットしました。")
             logger.info(f"Channel {channel_id}: Custom prompt updated")
-            
+
         except asyncio.TimeoutError:
             await interaction.followup.send("⏰ タイムアウトしました。プロンプト編集をキャンセルします。")
     
