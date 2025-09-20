@@ -5,6 +5,7 @@ OpenAI API と Ollama API の両方に対応した Discord ボット
 import os
 import sys
 import asyncio
+import logging
 from pathlib import Path
 
 # プロジェクトルートをパスに追加
@@ -78,13 +79,17 @@ class ChatBot:
         intents.guilds = True  # ギルド情報の取得に必要
         
         # Bot初期化時にコマンドの自動同期を有効化
-        self.bot = commands.Bot(
-            command_prefix='/', 
+        # BOT_APPLICATION_ID が未設定/不正な場合は application_id を渡さない
+        bot_kwargs = dict(
+            command_prefix='/',
             intents=intents,
             sync_commands=True,  # コマンドの自動同期
             sync_commands_debug=True,  # デバッグ情報の出力
-            application_id=int(os.getenv("BOT_APPLICATION_ID", "0"))  # アプリケーションID
         )
+        _app_id = os.getenv("BOT_APPLICATION_ID")
+        if _app_id and _app_id.isdigit():
+            bot_kwargs["application_id"] = int(_app_id)
+        self.bot = commands.Bot(**bot_kwargs)
         
         # イベントハンドラー登録
         self._setup_events()
@@ -269,8 +274,12 @@ class ChatBot:
         """AI対話スラッシュコマンドの処理"""
         channel_id = interaction.channel_id
         
-        # ログ出力
-        logger.info(f"User: {interaction.user} ({interaction.user.id}) | Content: {prompt}")
+        # ログ出力（ユーザー入力はマスク/短縮）
+        safe_prompt = (prompt[:100] + "...") if len(prompt) > 100 else prompt
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"User: {interaction.user} ({interaction.user.id}) | Content: {prompt}")
+        else:
+            logger.info(f"User: {interaction.user} ({interaction.user.id}) | Content: {safe_prompt}")
         
         # 初回の場合はシステム設定を追加
         if not self.conversation_manager.get_messages(channel_id):
